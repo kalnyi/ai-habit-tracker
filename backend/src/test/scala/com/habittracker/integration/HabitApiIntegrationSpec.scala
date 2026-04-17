@@ -7,12 +7,13 @@ import akka.actor.typed.ActorSystem
 import akka.actor.typed.scaladsl.Behaviors
 import akka.http.scaladsl.Http
 import akka.http.scaladsl.model._
+import akka.http.scaladsl.server.Directives._
 import akka.http.scaladsl.unmarshalling.Unmarshal
 import cats.effect.{Clock, IO}
 import cats.effect.unsafe.IORuntime
 import com.habittracker.http.HabitCodecs._
 import com.habittracker.http.dto.{CreateHabitRequest, HabitResponse, UpdateHabitRequest}
-import com.habittracker.http.{ErrorResponse, HabitRoutes}
+import com.habittracker.http.{DocsRoutes, ErrorResponse, HabitRoutes}
 import com.habittracker.repository.DoobieHabitRepository
 import com.habittracker.service.DefaultHabitService
 import de.heikoseeberger.akkahttpcirce.FailFastCirceSupport
@@ -21,7 +22,6 @@ import doobie.implicits._
 import doobie.postgres.implicits._
 import io.circe.parser.decode
 import io.circe.syntax._
-import org.flywaydb.core.Flyway
 import org.scalatest.{BeforeAndAfterAll, BeforeAndAfterEach}
 import org.scalatest.concurrent.ScalaFutures
 import org.scalatest.matchers.should.Matchers
@@ -62,18 +62,34 @@ class HabitApiIntegrationSpec
   private var transactor: HikariTransactor[IO]        = _
   private var binding: Http.ServerBinding             = _
   private var baseUrl: String                         = _
+  private var docsRoutes: DocsRoutes                  = _
 
   override def beforeAll(): Unit = {
     super.beforeAll()
 
     container.start()
 
-    Flyway
-      .configure()
-      .dataSource(container.getJdbcUrl, container.getUsername, container.getPassword)
-      .locations("filesystem:../../infra/db/migrations")
-      .load()
-      .migrate()
+    import liquibase.Liquibase
+    import liquibase.database.DatabaseFactory
+    import liquibase.database.jvm.JdbcConnection
+    import liquibase.resource.DirectoryResourceAccessor
+    import java.nio.file.Paths
+    import java.sql.DriverManager
+
+    val jdbcConn = DriverManager.getConnection(
+      container.getJdbcUrl, container.getUsername, container.getPassword
+    )
+    try {
+      val database = DatabaseFactory.getInstance()
+        .findCorrectDatabaseImplementation(new JdbcConnection(jdbcConn))
+      val accessor = new DirectoryResourceAccessor(
+        Paths.get("../../infra/db/changelog").toAbsolutePath.normalize
+      )
+      val liquibase = new Liquibase("db.changelog-master.xml", accessor, database)
+      liquibase.update("")
+    } finally {
+      jdbcConn.close()
+    }
 
     system = ActorSystem(Behaviors.empty, "habit-api-integration-test")
     ec     = system.executionContext
@@ -93,10 +109,11 @@ class HabitApiIntegrationSpec
     val repo    = new DoobieHabitRepository(transactor)
     val service = new DefaultHabitService(repo, Clock[IO])
     val routes  = new HabitRoutes(service)
+    docsRoutes  = new DocsRoutes()
 
     binding = Http()
       .newServerAt("127.0.0.1", 0)
-      .bind(routes.route)
+      .bind(routes.route ~ docsRoutes.route)
       .futureValue
 
     val port = binding.localAddress.getPort
@@ -324,6 +341,19 @@ class HabitApiIntegrationSpec
     "return 404 when deleting a non-existent ID" in {
       val resp = sendDelete(s"/habits/${UUID.randomUUID()}")
       resp.status shouldBe StatusCodes.NotFound
+    }
+  }
+
+  // ---------------------------------------------------------------------------
+  // GET /docs/openapi.json
+  // ---------------------------------------------------------------------------
+
+  "GET /docs/openapi.json" should {
+
+    "return 200 with Content-Type containing application/json" in {
+      val resp = sendGet("/docs/openapi.json")
+      resp.status shouldBe StatusCodes.OK
+      resp.entity.contentType.toString() should include("application/json")
     }
   }
 }

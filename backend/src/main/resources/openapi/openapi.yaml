@@ -1,0 +1,184 @@
+openapi: 3.0.3
+info:
+  title: Habit Tracker API
+  version: 0.1.0
+  description: "CRUD API for user habits (ASDLC PoC)."
+servers:
+  - url: http://localhost:8080
+paths:
+  /habits:
+    post:
+      summary: Create a habit
+      operationId: createHabit
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateHabitRequest'
+      responses:
+        '201':
+          description: Habit created successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HabitResponse'
+        '400':
+          description: Validation error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+    get:
+      summary: List all habits
+      operationId: listHabits
+      responses:
+        '200':
+          description: List of habits
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/HabitResponse'
+  /habits/{id}:
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+    get:
+      summary: Get a habit by ID
+      operationId: getHabit
+      responses:
+        '200':
+          description: Habit found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HabitResponse'
+        '400':
+          description: Invalid ID format
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: Habit not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+    put:
+      summary: Update a habit
+      operationId: updateHabit
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateHabitRequest'
+      responses:
+        '200':
+          description: Habit updated successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HabitResponse'
+        '400':
+          description: Validation error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: Habit not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+    delete:
+      summary: Delete a habit
+      operationId: deleteHabit
+      responses:
+        '204':
+          description: Habit deleted successfully
+        '400':
+          description: Invalid ID format
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: Habit not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+components:
+  schemas:
+    Frequency:
+      type: string
+      enum:
+        - daily
+        - weekly
+    CreateHabitRequest:
+      type: object
+      required:
+        - name
+        - frequency
+      properties:
+        name:
+          type: string
+        description:
+          type: string
+          nullable: true
+        frequency:
+          $ref: '#/components/schemas/Frequency'
+    UpdateHabitRequest:
+      type: object
+      required:
+        - name
+        - frequency
+      properties:
+        name:
+          type: string
+        description:
+          type: string
+          nullable: true
+        frequency:
+          $ref: '#/components/schemas/Frequency'
+    HabitResponse:
+      type: object
+      required:
+        - id
+        - name
+        - frequency
+        - createdAt
+        - updatedAt
+      properties:
+        id:
+          type: string
+          format: uuid
+        name:
+          type: string
+        description:
+          type: string
+          nullable: true
+        frequency:
+          $ref: '#/components/schemas/Frequency'
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+    ErrorResponse:
+      type: object
+      required:
+        - message
+      properties:
+        message:
+          type: string

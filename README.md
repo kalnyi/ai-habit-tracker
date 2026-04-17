@@ -13,7 +13,7 @@ A habit-tracking application with AI-powered personalised tips, pattern analysis
 | Layer | Technology |
 |---|---|
 | Backend | Scala 2.13, Akka HTTP, cats-effect |
-| Persistence | PostgreSQL 17 + pgvector, Doobie, Flyway |
+| Persistence | PostgreSQL 17 + pgvector, Doobie, Liquibase |
 | JSON | Circe |
 | Config | PureConfig (HOCON) |
 | Build | Gradle |
@@ -29,7 +29,7 @@ A habit-tracking application with AI-powered personalised tips, pattern analysis
 ├── infra/
 │   └── db/
 │       ├── init/     one-shot DB bootstrap (pgvector extension)
-│       └── migrations/  Flyway versioned migrations
+│       └── changelog/   Liquibase master changelog + changesets
 ├── docs/
 │   ├── adr/          Architecture Decision Records
 │   └── pbis/         Product Backlog Items
@@ -64,7 +64,7 @@ Wait for the health-check to go green (`docker compose ps`).
 
 ```bash
 cd backend
-gradle flywayMigrate
+gradle update
 ```
 
 ### 4. Start the backend
