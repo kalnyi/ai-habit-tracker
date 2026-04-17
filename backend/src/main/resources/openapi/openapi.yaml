@@ -41,6 +41,119 @@ paths:
                 type: array
                 items:
                   $ref: '#/components/schemas/HabitResponse'
+  /habits/{habitId}/completions:
+    parameters:
+      - name: habitId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+    post:
+      summary: Record a habit completion
+      operationId: recordHabitCompletion
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateHabitCompletionRequest'
+      responses:
+        '201':
+          description: Completion recorded successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HabitCompletionResponse'
+        '400':
+          description: Invalid habitId format, missing or unparseable completedOn, or malformed JSON
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: Habit not found or soft-deleted
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '409':
+          description: A completion already exists for this habit on the given date
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+    get:
+      summary: List completions for a habit
+      operationId: listHabitCompletions
+      parameters:
+        - name: from
+          in: query
+          required: false
+          schema:
+            type: string
+            format: date
+          description: Filter to completions on or after this date (YYYY-MM-DD)
+        - name: to
+          in: query
+          required: false
+          schema:
+            type: string
+            format: date
+          description: Filter to completions on or before this date (YYYY-MM-DD)
+      responses:
+        '200':
+          description: List of completions ordered by completedOn descending
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/HabitCompletionResponse'
+        '400':
+          description: Invalid habitId format or unparseable from/to date
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: Habit not found or soft-deleted
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+  /habits/{habitId}/completions/{completionId}:
+    parameters:
+      - name: habitId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+      - name: completionId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+    delete:
+      summary: Delete a habit completion
+      operationId: deleteHabitCompletion
+      responses:
+        '204':
+          description: Completion deleted successfully
+        '400':
+          description: Invalid habitId or completionId format
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: Habit not found, or completion not found, or completion belongs to a different habit
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
   /habits/{id}:
     parameters:
       - name: id
@@ -173,6 +286,40 @@ components:
           type: string
           format: date-time
         updatedAt:
+          type: string
+          format: date-time
+    CreateHabitCompletionRequest:
+      type: object
+      required:
+        - completedOn
+      properties:
+        completedOn:
+          type: string
+          format: date
+        note:
+          type: string
+          nullable: true
+    HabitCompletionResponse:
+      type: object
+      required:
+        - id
+        - habitId
+        - completedOn
+        - createdAt
+      properties:
+        id:
+          type: string
+          format: uuid
+        habitId:
+          type: string
+          format: uuid
+        completedOn:
+          type: string
+          format: date
+        note:
+          type: string
+          nullable: true
+        createdAt:
           type: string
           format: date-time
     ErrorResponse:

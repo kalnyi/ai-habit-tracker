@@ -114,3 +114,8 @@ After each session, update MEMORY.md with:
 - Decisions made and their rationale
 - Areas of the codebase that are sensitive or frequently changed
 - Conventions that differ from what is in CLAUDE.md
+
+## Git discipline
+After completing your work, stage your output files and commit with the message:
+`feat(arch): PLAN-{NNN} + ADR-{NNN} {short description}`.
+Do not commit files outside your designated output directories.

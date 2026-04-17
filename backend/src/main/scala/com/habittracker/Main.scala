@@ -7,9 +7,9 @@ import cats.effect.{Clock, IO, Resource}
 import cats.effect.unsafe.IORuntime
 import com.habittracker.config.AppConfig
 import akka.http.scaladsl.server.Directives._
-import com.habittracker.http.{DocsRoutes, HabitRoutes}
-import com.habittracker.repository.DoobieHabitRepository
-import com.habittracker.service.DefaultHabitService
+import com.habittracker.http.{DocsRoutes, HabitCompletionRoutes, HabitRoutes}
+import com.habittracker.repository.{DoobieHabitCompletionRepository, DoobieHabitRepository}
+import com.habittracker.service.{DefaultHabitCompletionService, DefaultHabitService}
 import doobie.hikari.HikariTransactor
 import org.slf4j.LoggerFactory
 import pureconfig.ConfigSource
@@ -47,15 +47,18 @@ object Main {
       )
 
     val serverIO: IO[Unit] = transactorResource.use { transactor =>
-      val repo       = new DoobieHabitRepository(transactor)
-      val service    = new DefaultHabitService(repo, Clock[IO])
-      val routes     = new HabitRoutes(service)
-      val docsRoutes = new DocsRoutes()
+      val repo               = new DoobieHabitRepository(transactor)
+      val completionRepo     = new DoobieHabitCompletionRepository(transactor)
+      val service            = new DefaultHabitService(repo, Clock[IO])
+      val completionService  = new DefaultHabitCompletionService(repo, completionRepo, Clock[IO])
+      val routes             = new HabitRoutes(service)
+      val completionRoutes   = new HabitCompletionRoutes(completionService)
+      val docsRoutes         = new DocsRoutes()
 
       IO.fromFuture(IO {
         Http()
           .newServerAt(config.server.host, config.server.port)
-          .bind(docsRoutes.route ~ routes.route)
+          .bind(docsRoutes.route ~ routes.route ~ completionRoutes.route)
       }).flatMap { binding =>
         log.info(s"Server started at http://${config.server.host}:${config.server.port}/")
 

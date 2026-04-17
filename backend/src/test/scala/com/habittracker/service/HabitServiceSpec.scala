@@ -2,96 +2,23 @@ package com.habittracker.service
 
 import org.junit.runner.RunWith
 import org.scalatestplus.junit.JUnitRunner
-import cats.{Applicative, Monad}
 import cats.effect.{Clock, IO}
 import cats.effect.testing.scalatest.AsyncIOSpec
+import com.habittracker.TestClocks
 import com.habittracker.domain.AppError.{NotFound, ValidationError}
-import com.habittracker.domain.{Frequency, Habit}
 import com.habittracker.http.dto.{CreateHabitRequest, UpdateHabitRequest}
-import com.habittracker.repository.HabitRepository
+import com.habittracker.repository.{HabitRepository, InMemoryHabitRepository}
 import org.scalatest.matchers.should.Matchers
 import org.scalatest.wordspec.AsyncWordSpec
 
-import java.time.Instant
 import java.util.UUID
-import scala.collection.mutable
-import scala.concurrent.duration.{FiniteDuration, MILLISECONDS}
 
 @RunWith(classOf[JUnitRunner])
 class HabitServiceSpec extends AsyncWordSpec with AsyncIOSpec with Matchers {
 
-  // ---------------------------------------------------------------------------
-  // In-memory repository double
-  // ---------------------------------------------------------------------------
-
-  class InMemoryHabitRepository extends HabitRepository {
-    val store: mutable.Map[UUID, Habit] = mutable.LinkedHashMap.empty
-
-    override def create(habit: Habit): IO[Unit] =
-      IO { store.put(habit.id, habit); () }
-
-    override def listActive(): IO[List[Habit]] =
-      IO { store.values.filter(_.deletedAt.isEmpty).toList }
-
-    override def findActiveById(id: UUID): IO[Option[Habit]] =
-      IO { store.get(id).filter(_.deletedAt.isEmpty) }
-
-    override def updateActive(
-        id: UUID,
-        name: String,
-        description: Option[String],
-        frequency: Frequency,
-        updatedAt: Instant
-    ): IO[Option[Habit]] =
-      IO {
-        store.get(id).filter(_.deletedAt.isEmpty).map { existing =>
-          val updated = existing.copy(
-            name = name,
-            description = description,
-            frequency = frequency,
-            updatedAt = updatedAt
-          )
-          store.put(id, updated)
-          updated
-        }
-      }
-
-    override def softDelete(id: UUID, at: Instant): IO[Boolean] =
-      IO {
-        store.get(id).filter(_.deletedAt.isEmpty) match {
-          case Some(h) =>
-            store.put(id, h.copy(deletedAt = Some(at), updatedAt = at))
-            true
-          case None => false
-        }
-      }
-  }
-
-  // ---------------------------------------------------------------------------
-  // Fake clock: advances by one second on each call so updatedAt > createdAt
-  // ---------------------------------------------------------------------------
-
-  def makeFakeClock(startEpochMs: Long): Clock[IO] = new Clock[IO] {
-    @volatile private var current = startEpochMs
-
-    override def applicative: Applicative[IO] = implicitly[Monad[IO]]
-
-    override def monotonic: IO[FiniteDuration] =
-      IO {
-        current += 1000
-        FiniteDuration(current, MILLISECONDS)
-      }
-
-    override def realTime: IO[FiniteDuration] =
-      IO {
-        current += 1000
-        FiniteDuration(current, MILLISECONDS)
-      }
-  }
-
   def makeService(
       repo: HabitRepository = new InMemoryHabitRepository(),
-      clock: Clock[IO] = makeFakeClock(1_000_000_000_000L)
+      clock: Clock[IO] = TestClocks.makeFakeClock(1_000_000_000_000L)
   ): HabitService =
     new DefaultHabitService(repo, clock)
 
@@ -160,7 +87,7 @@ class HabitServiceSpec extends AsyncWordSpec with AsyncIOSpec with Matchers {
 
     "set updatedAt strictly later than createdAt" in {
       val repo  = new InMemoryHabitRepository()
-      val clock = makeFakeClock(1_000_000_000_000L)
+      val clock = TestClocks.makeFakeClock(1_000_000_000_000L)
       val svc   = makeService(repo, clock)
 
       for {
