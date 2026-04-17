@@ -113,7 +113,7 @@ class HabitApiIntegrationSpec
 
     binding = Http()
       .newServerAt("127.0.0.1", 0)
-      .bind(routes.route ~ docsRoutes.route)
+      .bind(docsRoutes.route ~ routes.route)
       .futureValue
 
     val port = binding.localAddress.getPort

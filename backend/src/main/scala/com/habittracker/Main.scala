@@ -55,7 +55,7 @@ object Main {
       IO.fromFuture(IO {
         Http()
           .newServerAt(config.server.host, config.server.port)
-          .bind(routes.route ~ docsRoutes.route)
+          .bind(docsRoutes.route ~ routes.route)
       }).flatMap { binding =>
         log.info(s"Server started at http://${config.server.host}:${config.server.port}/")
 
