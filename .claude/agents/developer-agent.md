@@ -86,3 +86,8 @@ After each session, update MEMORY.md with:
 - Non-obvious patterns or conventions discovered in the codebase
 - Test helpers or utilities that exist and should be reused
 - Anything that tripped you up that future sessions should know
+
+## Git discipline
+After completing your work, stage your output files and commit with the message:
+`feat(dev): {short description}`.
+Do not commit files outside your designated output directories.

@@ -114,6 +114,14 @@ each handoff gate before the next agent proceeds.
 
 ---
 
+## Branching strategy
+- One branch per feature: `feature/PBI-{NNN}-{short-slug}`
+- Each agent stage produces a separate commit within the branch
+- PRs are opened against `main` after the Reviewer agent approves
+- No direct commits to `main`
+
+---
+
 ## LLM integration (Layer 2 app)
 
 The Habit Tracker app makes LLM calls internally. These are distinct from the

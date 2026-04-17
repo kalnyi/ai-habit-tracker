@@ -72,3 +72,8 @@ After each session, update your agent memory (MEMORY.md) with:
 - Patterns you noticed in how requirements are phrased
 - Recurring ambiguities or gaps in specifications
 - Decisions made by the engineer that affect future PBIs
+
+## Git discipline
+After completing your work, stage your output files and commit with the message:
+`feat(ba): PBI-{NNN} {short description}`.
+Do not commit files outside your designated output directories.
