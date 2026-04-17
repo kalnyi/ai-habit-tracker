@@ -1,0 +1,243 @@
+package com.habittracker.service
+
+import org.junit.runner.RunWith
+import org.scalatestplus.junit.JUnitRunner
+import cats.{Applicative, Monad}
+import cats.effect.{Clock, IO}
+import cats.effect.testing.scalatest.AsyncIOSpec
+import com.habittracker.domain.AppError.{NotFound, ValidationError}
+import com.habittracker.domain.{Frequency, Habit}
+import com.habittracker.http.dto.{CreateHabitRequest, UpdateHabitRequest}
+import com.habittracker.repository.HabitRepository
+import org.scalatest.matchers.should.Matchers
+import org.scalatest.wordspec.AsyncWordSpec
+
+import java.time.Instant
+import java.util.UUID
+import scala.collection.mutable
+import scala.concurrent.duration.{FiniteDuration, MILLISECONDS}
+
+@RunWith(classOf[JUnitRunner])
+class HabitServiceSpec extends AsyncWordSpec with AsyncIOSpec with Matchers {
+
+  // ---------------------------------------------------------------------------
+  // In-memory repository double
+  // ---------------------------------------------------------------------------
+
+  class InMemoryHabitRepository extends HabitRepository {
+    val store: mutable.Map[UUID, Habit] = mutable.LinkedHashMap.empty
+
+    override def create(habit: Habit): IO[Unit] =
+      IO { store.put(habit.id, habit); () }
+
+    override def listActive(): IO[List[Habit]] =
+      IO { store.values.filter(_.deletedAt.isEmpty).toList }
+
+    override def findActiveById(id: UUID): IO[Option[Habit]] =
+      IO { store.get(id).filter(_.deletedAt.isEmpty) }
+
+    override def updateActive(
+        id: UUID,
+        name: String,
+        description: Option[String],
+        frequency: Frequency,
+        updatedAt: Instant
+    ): IO[Option[Habit]] =
+      IO {
+        store.get(id).filter(_.deletedAt.isEmpty).map { existing =>
+          val updated = existing.copy(
+            name = name,
+            description = description,
+            frequency = frequency,
+            updatedAt = updatedAt
+          )
+          store.put(id, updated)
+          updated
+        }
+      }
+
+    override def softDelete(id: UUID, at: Instant): IO[Boolean] =
+      IO {
+        store.get(id).filter(_.deletedAt.isEmpty) match {
+          case Some(h) =>
+            store.put(id, h.copy(deletedAt = Some(at), updatedAt = at))
+            true
+          case None => false
+        }
+      }
+  }
+
+  // ---------------------------------------------------------------------------
+  // Fake clock: advances by one second on each call so updatedAt > createdAt
+  // ---------------------------------------------------------------------------
+
+  def makeFakeClock(startEpochMs: Long): Clock[IO] = new Clock[IO] {
+    @volatile private var current = startEpochMs
+
+    override def applicative: Applicative[IO] = implicitly[Monad[IO]]
+
+    override def monotonic: IO[FiniteDuration] =
+      IO {
+        current += 1000
+        FiniteDuration(current, MILLISECONDS)
+      }
+
+    override def realTime: IO[FiniteDuration] =
+      IO {
+        current += 1000
+        FiniteDuration(current, MILLISECONDS)
+      }
+  }
+
+  def makeService(
+      repo: HabitRepository = new InMemoryHabitRepository(),
+      clock: Clock[IO] = makeFakeClock(1_000_000_000_000L)
+  ): HabitService =
+    new DefaultHabitService(repo, clock)
+
+  // ---------------------------------------------------------------------------
+  // Tests
+  // ---------------------------------------------------------------------------
+
+  "HabitService.createHabit" should {
+
+    "return ValidationError when name is blank" in {
+      val svc = makeService()
+      svc.createHabit(CreateHabitRequest("  ", None, "daily")).asserting { result =>
+        result shouldBe Left(ValidationError("name must not be blank"))
+      }
+    }
+
+    "return ValidationError when name is empty" in {
+      val svc = makeService()
+      svc.createHabit(CreateHabitRequest("", None, "daily")).asserting { result =>
+        result shouldBe Left(ValidationError("name must not be blank"))
+      }
+    }
+
+    "return ValidationError when frequency is unknown" in {
+      val svc = makeService()
+      svc.createHabit(CreateHabitRequest("Run", None, "monthly")).asserting { result =>
+        result.isLeft shouldBe true
+        result.swap.toOption.get shouldBe a[ValidationError]
+      }
+    }
+
+    "create a habit with valid input and set id, createdAt, updatedAt" in {
+      val svc = makeService()
+      svc.createHabit(CreateHabitRequest("Read 20 pages", Some("Non-fiction"), "daily")).asserting {
+        result =>
+          result.isRight shouldBe true
+          val habit = result.toOption.get
+          habit.id should not be null
+          habit.name shouldBe "Read 20 pages"
+          habit.description shouldBe Some("Non-fiction")
+          habit.frequency shouldBe "daily"
+          habit.createdAt should not be null
+          habit.updatedAt should not be null
+      }
+    }
+
+    "create a habit with description None when not provided" in {
+      val svc = makeService()
+      svc.createHabit(CreateHabitRequest("Exercise", None, "weekly")).asserting { result =>
+        result.isRight shouldBe true
+        result.toOption.get.description shouldBe None
+      }
+    }
+  }
+
+  "HabitService.updateHabit" should {
+
+    "return NotFound when habit does not exist" in {
+      val svc = makeService()
+      svc.updateHabit(UUID.randomUUID(), UpdateHabitRequest("New name", None, "daily")).asserting {
+        result =>
+          result.isLeft shouldBe true
+          result.swap.toOption.get shouldBe a[NotFound]
+      }
+    }
+
+    "set updatedAt strictly later than createdAt" in {
+      val repo  = new InMemoryHabitRepository()
+      val clock = makeFakeClock(1_000_000_000_000L)
+      val svc   = makeService(repo, clock)
+
+      for {
+        created <- svc.createHabit(CreateHabitRequest("Run", None, "daily"))
+        id = created.toOption.get.id
+        original = created.toOption.get
+        updated <- svc.updateHabit(id, UpdateHabitRequest("Walk", None, "weekly"))
+      } yield {
+        updated.isRight shouldBe true
+        val u = updated.toOption.get
+        u.name shouldBe "Walk"
+        u.updatedAt.isAfter(original.createdAt) shouldBe true
+      }
+    }
+
+    "return ValidationError when name is blank on update" in {
+      val repo = new InMemoryHabitRepository()
+      val svc  = makeService(repo)
+      for {
+        _   <- svc.createHabit(CreateHabitRequest("Run", None, "daily"))
+        ids  = repo.store.keys.toList
+        id   = ids.head
+        res <- svc.updateHabit(id, UpdateHabitRequest("", None, "daily"))
+      } yield {
+        res shouldBe Left(ValidationError("name must not be blank"))
+      }
+    }
+  }
+
+  "HabitService.deleteHabit" should {
+
+    "return NotFound when deleting a non-existent habit" in {
+      val svc = makeService()
+      svc.deleteHabit(UUID.randomUUID()).asserting { result =>
+        result.isLeft shouldBe true
+        result.swap.toOption.get shouldBe a[NotFound]
+      }
+    }
+
+    "succeed on first delete and return NotFound on second delete" in {
+      val svc = makeService()
+      for {
+        created <- svc.createHabit(CreateHabitRequest("Meditate", None, "daily"))
+        id = created.toOption.get.id
+        first  <- svc.deleteHabit(id)
+        second <- svc.deleteHabit(id)
+      } yield {
+        first shouldBe Right(())
+        second.isLeft shouldBe true
+        second.swap.toOption.get shouldBe a[NotFound]
+      }
+    }
+  }
+
+  "HabitService.listHabits" should {
+
+    "return empty list when no habits exist" in {
+      val svc = makeService()
+      svc.listHabits().asserting { result =>
+        result shouldBe Right(List.empty)
+      }
+    }
+
+    "exclude soft-deleted habits" in {
+      val svc = makeService()
+      for {
+        _  <- svc.createHabit(CreateHabitRequest("Active habit", None, "daily"))
+        h2 <- svc.createHabit(CreateHabitRequest("To be deleted", None, "weekly"))
+        id = h2.toOption.get.id
+        _ <- svc.deleteHabit(id)
+        list <- svc.listHabits()
+      } yield {
+        list.isRight shouldBe true
+        val habits = list.toOption.get
+        habits.length shouldBe 1
+        habits.head.name shouldBe "Active habit"
+      }
+    }
+  }
+}

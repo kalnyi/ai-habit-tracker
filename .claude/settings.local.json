@@ -1,0 +1,41 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(curl -s \"https://repo.maven.apache.org/maven2/com/typesafe/akka/akka-stream_2.13/2.9.3/akka-stream_2.13-2.9.3.pom\")",
+      "Bash(curl -s \"https://repo.maven.apache.org/maven2/com/typesafe/akka/akka-http_2.13/maven-metadata.xml\")",
+      "Bash(curl -s \"https://repo.maven.apache.org/maven2/de/heikoseeberger/akka-http-circe_2.13/maven-metadata.xml\")",
+      "Bash(export GRADLE_HOME=\"/c/Users/Oleksandr_Kalnyi/OneDrive - EPAM/dev/tools/gradle-9.4.1\")",
+      "Bash(export PATH=\"$GRADLE_HOME/bin:$PATH\")",
+      "Bash(export JAVA_HOME=\"/c/Users/Oleksandr_Kalnyi/OneDrive - EPAM/dev/tools/open-jdk-17\")",
+      "Bash(gradle compileScala)",
+      "Bash(export GRADLE_HOME=\"/c/Users/Oleksandr_Kalnyi/OneDrive - EPAM/dev/tools/gradle-9.4.1\" export PATH=\"$GRADLE_HOME/bin:$PATH\" export JAVA_HOME=\"/c/Users/Oleksandr_Kalnyi/OneDrive - EPAM/dev/tools/open-jdk-17\" cd \"/c/Users/Oleksandr_Kalnyi/OneDrive - EPAM/dev/projects/ai-habit-tracker/backend\")",
+      "Bash(gradle compileTestScala)",
+      "Bash(gradle test *)",
+      "Bash(curl -s \"https://repo.maven.apache.org/maven2/org/scalatestplus/junit-4-13_2.13/maven-metadata.xml\")",
+      "Bash(curl -s \"https://repo.maven.apache.org/maven2/junit/junit/maven-metadata.xml\")",
+      "Bash(docker info *)",
+      "Bash(export PATH=\"/c/Program Files/Docker/Docker/resources/bin:$PATH\")",
+      "Bash(export PATH=\"$GRADLE_HOME/bin:/c/Program Files/Docker/Docker/resources/bin:$PATH\")",
+      "Bash(export DOCKER_HOST=\"npipe:////./pipe/dockerDesktopLinuxEngine\")",
+      "Bash(DOCKER_HOST=\"npipe:////./pipe/dockerDesktopLinuxEngine\" docker version)",
+      "Bash(DOCKER_HOST=\"npipe:////./pipe/dockerDesktopLinuxEngine\" docker info)",
+      "Bash(export TESTCONTAINERS_RYUK_DISABLED=\"true\")",
+      "Bash(jar tf *)",
+      "Bash(export GRADLE_HOME=\"/c/Users/Oleksandr_Kalnyi/OneDrive - EPAM/dev/tools/gradle-9.4.1\" export PATH=\"$GRADLE_HOME/bin:/c/Program Files/Docker/Docker/resources/bin:$PATH\" export JAVA_HOME=\"/c/Users/Oleksandr_Kalnyi/OneDrive - EPAM/dev/tools/open-jdk-17\")",
+      "Bash(DOCKER_HOST=\"tcp://localhost:2375\" docker ps)",
+      "Bash(DOCKER_HOST=\"tcp://localhost:2376\" docker ps)",
+      "Bash(curl -s \"https://repo.maven.apache.org/maven2/org/testcontainers/testcontainers/maven-metadata.xml\")",
+      "Bash(export DOCKER_HOST=\"npipe:///./pipe/dockerDesktopLinuxEngine\")",
+      "Bash(./gradlew compileScala)",
+      "Bash(./gradlew test *)",
+      "Bash(gradle --version)",
+      "Bash(git -C \"C:\\\\Users\\\\Oleksandr_Kalnyi\\\\OneDrive - EPAM\\\\dev\\\\projects\\\\ai-habit-tracker\" status --short)"
+    ]
+  },
+  "enabledMcpjsonServers": [
+    "github",
+    "postgres",
+    "filesystem",
+    "context7"
+  ]
+}
