@@ -197,6 +197,12 @@ Run `claude doctor` if Claude Code behaves unexpectedly.
 
 ---
 
+## OpenAPI spec
+
+OpenAPI spec lives at `backend/src/main/resources/openapi/openapi.yaml`. Any change to a request/response DTO requires a matching edit to this file in the same PR.
+
+---
+
 ## References
 
 - ASDLC methodology: https://asdlc.io/getting-started/

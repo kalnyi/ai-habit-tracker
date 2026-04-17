@@ -1,7 +1,6 @@
 plugins {
     id 'scala'
     id 'application'
-    id 'org.flywaydb.flyway' version '10.17.0'
 }
 
 group = 'com.habittracker'
@@ -20,6 +19,7 @@ ext {
     akkaVersion        = '2.8.8'
     circeVersion       = '0.14.9'
     doobieVersion      = '1.0.0-RC5'
+    liquibaseVersion   = '4.29.2'
 }
 
 java {
@@ -33,6 +33,35 @@ application {
 
 repositories {
     mavenCentral()
+}
+
+// Redirect build output outside OneDrive to prevent sync-related file locks on Windows.
+def localAppData = System.getenv('LOCALAPPDATA') ?: "${System.getProperty('user.home')}/AppData/Local"
+layout.buildDirectory = file("${localAppData}/habit-tracker-build")
+
+// Read ../.env for local development so that 'gradle update' works without
+// manually exporting shell variables. Environment variables always win.
+def dotEnv = [:]
+def dotEnvFile = file('../.env')
+if (dotEnvFile.exists()) {
+    dotEnvFile.readLines().each { line ->
+        line = line.trim()
+        if (line && !line.startsWith('#') && line.contains('=')) {
+            def idx = line.indexOf('=')
+            dotEnv[line.substring(0, idx).trim()] = line.substring(idx + 1).trim()
+        }
+    }
+}
+
+def resolveEnv = { String key, String fallback ->
+    System.getenv(key) ?: dotEnv[key] ?: fallback
+}
+
+// Separate classpath for the Liquibase CLI tasks (not on the application runtime classpath).
+// The org.liquibase.gradle plugin is incompatible with Gradle 9 (LiquibaseTask.exec() was
+// removed), so we declare the configuration manually and drive migrations via a JavaExec task.
+configurations {
+    liquibaseRuntime
 }
 
 configurations.all {
@@ -73,9 +102,16 @@ dependencies {
     // PostgreSQL JDBC driver
     implementation 'org.postgresql:postgresql:42.7.3'
 
-    // Flyway (schema migrations)
-    implementation 'org.flywaydb:flyway-core:10.17.0'
-    implementation 'org.flywaydb:flyway-database-postgresql:10.17.0'
+    // Liquibase (schema migrations — application runtime).
+    // Note: liquibase-core brings org.yaml:snakeyaml transitively.
+    // DocsRoutes uses SnakeYAML for YAML→JSON conversion at /docs/openapi.json.
+    // If liquibase-core is ever removed, add an explicit snakeyaml dependency.
+    implementation "org.liquibase:liquibase-core:${liquibaseVersion}"
+
+    // Liquibase CLI classpath (used by the 'update' JavaExec task below)
+    liquibaseRuntime "org.liquibase:liquibase-core:${liquibaseVersion}"
+    liquibaseRuntime 'info.picocli:picocli:4.7.5'
+    liquibaseRuntime 'org.postgresql:postgresql:42.7.3'
 
     // PureConfig (HOCON config loading)
     implementation "com.github.pureconfig:pureconfig_${scalaBinary}:0.17.7"
@@ -83,6 +119,9 @@ dependencies {
     // Logging
     implementation 'ch.qos.logback:logback-classic:1.5.6'
     implementation "org.typelevel:log4cats-slf4j_${scalaBinary}:2.7.0"
+
+    // Swagger UI WebJar (served from /docs/ui/)
+    implementation 'org.webjars:swagger-ui:5.17.14'
 
     // Test dependencies
     testImplementation "org.scalatest:scalatest_2.13:3.2.19"
@@ -100,7 +139,35 @@ dependencies {
     testImplementation 'junit:junit:4.13.2'
 }
 
+// ---------------------------------------------------------------------------
+// Liquibase CLI task — runs via JavaExec (org.liquibase.gradle plugin is
+// incompatible with Gradle 9). Usage: gradle update
+// ---------------------------------------------------------------------------
+tasks.register('update', JavaExec) {
+    group     = 'liquibase'
+    description = 'Applies pending Liquibase changesets.'
+    classpath   = configurations.liquibaseRuntime
+    mainClass   = 'liquibase.integration.commandline.LiquibaseCommandLine'
+    doFirst {
+        def host = resolveEnv('DB_HOST', 'localhost')
+        def port = '5433'
+        def name = resolveEnv('DB_NAME', 'habittracker')
+        def user = resolveEnv('DB_USER', 'habituser')
+        def pwd  = resolveEnv('DB_PASSWORD', '')
+        args = [
+            "--search-path=${file('../infra/db/changelog').absolutePath}",
+            'update',
+            "--url=jdbc:postgresql://${host}:${port}/${name}",
+            "--username=${user}",
+            "--password=${pwd}",
+            "--changelog-file=db.changelog-master.xml",
+        ]
+    }
+}
+
+// ---------------------------------------------------------------------------
 // Scala compiler options
+// ---------------------------------------------------------------------------
 tasks.withType(ScalaCompile).configureEach {
     scalaCompileOptions.additionalParameters = [
         '-deprecation',
@@ -135,13 +202,6 @@ test {
     }
 }
 
-flyway {
-    url      = 'jdbc:postgresql://localhost:5432/habittracker'
-    user     = System.getenv('DB_USER') ?: 'habituser'
-    password = System.getenv('DB_PASSWORD') ?: ''
-    locations = ['filesystem:../infra/db/migrations']
-    cleanDisabled = false
-}
 
 sourceSets {
     main {

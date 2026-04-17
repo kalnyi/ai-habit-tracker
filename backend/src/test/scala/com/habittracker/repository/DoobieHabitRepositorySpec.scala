@@ -9,7 +9,6 @@ import com.habittracker.domain.{Frequency, Habit}
 import doobie.implicits._
 import doobie.postgres.implicits._
 import doobie.hikari.HikariTransactor
-import org.flywaydb.core.Flyway
 import org.scalatest.{BeforeAndAfterAll, BeforeAndAfterEach}
 import org.scalatest.matchers.should.Matchers
 import org.scalatest.wordspec.AnyWordSpec
@@ -46,13 +45,28 @@ class DoobieHabitRepositorySpec
     super.beforeAll()
     container.start()
 
-    // Run Flyway migrations
-    Flyway
-      .configure()
-      .dataSource(container.getJdbcUrl, container.getUsername, container.getPassword)
-      .locations("filesystem:../../infra/db/migrations")
-      .load()
-      .migrate()
+    // Run Liquibase migrations
+    import liquibase.Liquibase
+    import liquibase.database.DatabaseFactory
+    import liquibase.database.jvm.JdbcConnection
+    import liquibase.resource.DirectoryResourceAccessor
+    import java.nio.file.Paths
+    import java.sql.DriverManager
+
+    val jdbcConn = DriverManager.getConnection(
+      container.getJdbcUrl, container.getUsername, container.getPassword
+    )
+    try {
+      val database = DatabaseFactory.getInstance()
+        .findCorrectDatabaseImplementation(new JdbcConnection(jdbcConn))
+      val accessor = new DirectoryResourceAccessor(
+        Paths.get("../../infra/db/changelog").toAbsolutePath.normalize
+      )
+      val liquibase = new Liquibase("db.changelog-master.xml", accessor, database)
+      liquibase.update("")
+    } finally {
+      jdbcConn.close()
+    }
 
     transactor = HikariTransactor
       .newHikariTransactor[IO](

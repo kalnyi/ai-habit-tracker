@@ -6,11 +6,11 @@ import akka.http.scaladsl.Http
 import cats.effect.{Clock, IO, Resource}
 import cats.effect.unsafe.IORuntime
 import com.habittracker.config.AppConfig
-import com.habittracker.http.HabitRoutes
+import akka.http.scaladsl.server.Directives._
+import com.habittracker.http.{DocsRoutes, HabitRoutes}
 import com.habittracker.repository.DoobieHabitRepository
 import com.habittracker.service.DefaultHabitService
 import doobie.hikari.HikariTransactor
-import org.flywaydb.core.Flyway
 import org.slf4j.LoggerFactory
 import pureconfig.ConfigSource
 import pureconfig.generic.auto._
@@ -36,10 +36,7 @@ object Main {
     // 3. Create the cats-effect IORuntime (bridge IO -> Future at route boundary)
     implicit val ioRuntime: IORuntime = IORuntime.global
 
-    // 4. Run Flyway migrations
-    runMigrations(config)
-
-    // 5. Build the HikariTransactor resource and start the server
+    // 4. Build the HikariTransactor resource and start the server
     val transactorResource: Resource[IO, HikariTransactor[IO]] =
       HikariTransactor.newHikariTransactor[IO](
         config.database.driver,
@@ -50,14 +47,15 @@ object Main {
       )
 
     val serverIO: IO[Unit] = transactorResource.use { transactor =>
-      val repo    = new DoobieHabitRepository(transactor)
-      val service = new DefaultHabitService(repo, Clock[IO])
-      val routes  = new HabitRoutes(service)
+      val repo       = new DoobieHabitRepository(transactor)
+      val service    = new DefaultHabitService(repo, Clock[IO])
+      val routes     = new HabitRoutes(service)
+      val docsRoutes = new DocsRoutes()
 
       IO.fromFuture(IO {
         Http()
           .newServerAt(config.server.host, config.server.port)
-          .bind(routes.route)
+          .bind(routes.route ~ docsRoutes.route)
       }).flatMap { binding =>
         log.info(s"Server started at http://${config.server.host}:${config.server.port}/")
 
@@ -81,14 +79,5 @@ object Main {
     serverIO.unsafeRunSync()
   }
 
-  private def runMigrations(config: AppConfig): Unit = {
-    log.info("Running Flyway migrations...")
-    Flyway
-      .configure()
-      .dataSource(config.database.url, config.database.user, config.database.password)
-      .locations("classpath:db/migrations", "filesystem:../infra/db/migrations")
-      .load()
-      .migrate()
-    log.info("Flyway migrations completed")
-  }
+
 }
