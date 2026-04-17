@@ -4,7 +4,7 @@ import akka.http.scaladsl.model.StatusCodes
 import akka.http.scaladsl.server.Directives._
 import akka.http.scaladsl.server.{ExceptionHandler, MalformedRequestContentRejection, RejectionHandler, Route}
 import com.habittracker.domain.AppError
-import com.habittracker.domain.AppError.{InvalidUuid, NotFound, ValidationError}
+import com.habittracker.domain.AppError.{ConflictError, InvalidUuid, NotFound, ValidationError}
 import de.heikoseeberger.akkahttpcirce.FailFastCirceSupport
 import org.slf4j.LoggerFactory
 
@@ -22,6 +22,8 @@ object ErrorHandler extends FailFastCirceSupport {
       complete(StatusCodes.NotFound, ErrorResponse(msg))
     case InvalidUuid(msg) =>
       complete(StatusCodes.BadRequest, ErrorResponse(msg))
+    case ConflictError(msg) =>
+      complete(StatusCodes.Conflict, ErrorResponse(msg))
   }
 
   /** Maps any unhandled Throwable to 500 + a generic ErrorResponse. */

@@ -12,4 +12,5 @@ object AppError {
   final case class ValidationError(message: String) extends AppError
   final case class NotFound(message: String) extends AppError
   final case class InvalidUuid(message: String) extends AppError
+  final case class ConflictError(message: String) extends AppError
 }
