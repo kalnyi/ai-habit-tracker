@@ -2,7 +2,7 @@ package com.habittracker.service
 
 import cats.effect.{Clock, IO}
 import com.habittracker.domain.AppError
-import com.habittracker.domain.AppError.{ConflictError, NotFound}
+import com.habittracker.domain.AppError.NotFound
 import com.habittracker.domain.HabitCompletion
 import com.habittracker.http.dto.{CreateHabitCompletionRequest, HabitCompletionResponse}
 import com.habittracker.repository.{HabitCompletionRepository, HabitRepository}
@@ -43,31 +43,20 @@ final class DefaultHabitCompletionService(
       case None =>
         IO.pure(Left(NotFound(s"Habit '$habitId' not found")))
       case Some(_) =>
-        completionRepo.findByHabitAndDate(habitId, req.completedOn).flatMap {
-          case Some(_) =>
-            IO.pure(
-              Left(
-                ConflictError(
-                  s"Habit '$habitId' already has a completion for ${req.completedOn}"
-                )
-              )
-            )
-          case None =>
-            for {
-              now <- clock.realTimeInstant
-              id = UUID.randomUUID()
-              completion = HabitCompletion(
-                id = id,
-                habitId = habitId,
-                completedOn = req.completedOn,
-                note = req.note,
-                createdAt = now
-              )
-              result <- completionRepo.create(completion)
-            } yield result match {
-              case Left(err)  => Left(err): Either[AppError, HabitCompletionResponse]
-              case Right(()) => Right(HabitCompletionResponse.fromHabitCompletion(completion))
-            }
+        for {
+          now <- clock.realTimeInstant
+          id  <- IO(UUID.randomUUID())
+          completion = HabitCompletion(
+            id = id,
+            habitId = habitId,
+            completedOn = req.completedOn,
+            note = req.note,
+            createdAt = now
+          )
+          result <- completionRepo.create(completion)
+        } yield result match {
+          case Left(err)  => Left(err): Either[AppError, HabitCompletionResponse]
+          case Right(()) => Right(HabitCompletionResponse.fromHabitCompletion(completion))
         }
     }
 

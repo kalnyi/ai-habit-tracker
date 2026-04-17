@@ -2,9 +2,9 @@ package com.habittracker.service
 
 import org.junit.runner.RunWith
 import org.scalatestplus.junit.JUnitRunner
-import cats.{Applicative, Monad}
 import cats.effect.{Clock, IO}
 import cats.effect.testing.scalatest.AsyncIOSpec
+import com.habittracker.TestClocks
 import com.habittracker.domain.AppError.{NotFound, ValidationError}
 import com.habittracker.http.dto.{CreateHabitRequest, UpdateHabitRequest}
 import com.habittracker.repository.{HabitRepository, InMemoryHabitRepository}
@@ -12,36 +12,13 @@ import org.scalatest.matchers.should.Matchers
 import org.scalatest.wordspec.AsyncWordSpec
 
 import java.util.UUID
-import scala.concurrent.duration.{FiniteDuration, MILLISECONDS}
 
 @RunWith(classOf[JUnitRunner])
 class HabitServiceSpec extends AsyncWordSpec with AsyncIOSpec with Matchers {
 
-  // ---------------------------------------------------------------------------
-  // Fake clock: advances by one second on each call so updatedAt > createdAt
-  // ---------------------------------------------------------------------------
-
-  def makeFakeClock(startEpochMs: Long): Clock[IO] = new Clock[IO] {
-    @volatile private var current = startEpochMs
-
-    override def applicative: Applicative[IO] = implicitly[Monad[IO]]
-
-    override def monotonic: IO[FiniteDuration] =
-      IO {
-        current += 1000
-        FiniteDuration(current, MILLISECONDS)
-      }
-
-    override def realTime: IO[FiniteDuration] =
-      IO {
-        current += 1000
-        FiniteDuration(current, MILLISECONDS)
-      }
-  }
-
   def makeService(
       repo: HabitRepository = new InMemoryHabitRepository(),
-      clock: Clock[IO] = makeFakeClock(1_000_000_000_000L)
+      clock: Clock[IO] = TestClocks.makeFakeClock(1_000_000_000_000L)
   ): HabitService =
     new DefaultHabitService(repo, clock)
 
@@ -110,7 +87,7 @@ class HabitServiceSpec extends AsyncWordSpec with AsyncIOSpec with Matchers {
 
     "set updatedAt strictly later than createdAt" in {
       val repo  = new InMemoryHabitRepository()
-      val clock = makeFakeClock(1_000_000_000_000L)
+      val clock = TestClocks.makeFakeClock(1_000_000_000_000L)
       val svc   = makeService(repo, clock)
 
       for {

@@ -27,6 +27,18 @@ import java.util.UUID
 final class HabitCompletionRoutes(service: HabitCompletionService)(implicit runtime: IORuntime)
     extends JsonSupport {
 
+  private def parseDate(
+      paramName: String,
+      value: Option[String]
+  ): Either[String, Option[LocalDate]] =
+    value match {
+      case None    => Right(None)
+      case Some(s) =>
+        scala.util.Try(LocalDate.parse(s)).toEither.left
+          .map(e => s"Invalid '$paramName' date: ${e.getMessage}")
+          .map(Some(_))
+    }
+
   val route: Route =
     handleExceptions(ErrorHandler.exceptionHandler) {
       handleRejections(ErrorHandler.rejectionHandler) {
@@ -50,22 +62,8 @@ final class HabitCompletionRoutes(service: HabitCompletionService)(implicit runt
                         "from".as[String].optional,
                         "to".as[String].optional
                       )) { (fromStr, toStr) =>
-                        val parsedFrom: Either[String, Option[LocalDate]] =
-                          fromStr match {
-                            case None    => Right(None)
-                            case Some(s) =>
-                              scala.util.Try(LocalDate.parse(s)).toEither.left
-                                .map(e => s"Invalid 'from' date: ${e.getMessage}")
-                                .map(Some(_))
-                          }
-                        val parsedTo: Either[String, Option[LocalDate]] =
-                          toStr match {
-                            case None    => Right(None)
-                            case Some(s) =>
-                              scala.util.Try(LocalDate.parse(s)).toEither.left
-                                .map(e => s"Invalid 'to' date: ${e.getMessage}")
-                                .map(Some(_))
-                          }
+                        val parsedFrom = parseDate("from", fromStr)
+                        val parsedTo   = parseDate("to", toStr)
                         (parsedFrom, parsedTo) match {
                           case (Left(msg), _) =>
                             complete(StatusCodes.BadRequest, ErrorResponse(msg))

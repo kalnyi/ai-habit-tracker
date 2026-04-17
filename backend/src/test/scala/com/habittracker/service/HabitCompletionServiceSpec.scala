@@ -2,9 +2,9 @@ package com.habittracker.service
 
 import org.junit.runner.RunWith
 import org.scalatestplus.junit.JUnitRunner
-import cats.{Applicative, Monad}
 import cats.effect.{Clock, IO}
 import cats.effect.testing.scalatest.AsyncIOSpec
+import com.habittracker.TestClocks
 import com.habittracker.domain.AppError.{ConflictError, NotFound}
 import com.habittracker.domain.{Frequency, Habit, HabitCompletion}
 import com.habittracker.http.dto.CreateHabitCompletionRequest
@@ -15,7 +15,6 @@ import org.scalatest.wordspec.AsyncWordSpec
 import java.time.{Instant, LocalDate}
 import java.util.UUID
 import scala.collection.mutable
-import scala.concurrent.duration.{FiniteDuration, MILLISECONDS}
 
 @RunWith(classOf[JUnitRunner])
 class HabitCompletionServiceSpec extends AsyncWordSpec with AsyncIOSpec with Matchers {
@@ -75,28 +74,6 @@ class HabitCompletionServiceSpec extends AsyncWordSpec with AsyncIOSpec with Mat
   }
 
   // ---------------------------------------------------------------------------
-  // Fake clock
-  // ---------------------------------------------------------------------------
-
-  def makeFakeClock(startEpochMs: Long): Clock[IO] = new Clock[IO] {
-    @volatile private var current = startEpochMs
-
-    override def applicative: Applicative[IO] = implicitly[Monad[IO]]
-
-    override def monotonic: IO[FiniteDuration] =
-      IO {
-        current += 1000
-        FiniteDuration(current, MILLISECONDS)
-      }
-
-    override def realTime: IO[FiniteDuration] =
-      IO {
-        current += 1000
-        FiniteDuration(current, MILLISECONDS)
-      }
-  }
-
-  // ---------------------------------------------------------------------------
   // Helpers
   // ---------------------------------------------------------------------------
 
@@ -108,7 +85,7 @@ class HabitCompletionServiceSpec extends AsyncWordSpec with AsyncIOSpec with Mat
   def makeService(
       habitRepo: InMemoryHabitRepository = new InMemoryHabitRepository(),
       completionRepo: InMemoryHabitCompletionRepository = new InMemoryHabitCompletionRepository(),
-      clock: Clock[IO] = makeFakeClock(1_000_000_000_000L)
+      clock: Clock[IO] = TestClocks.makeFakeClock(1_000_000_000_000L)
   ): (InMemoryHabitRepository, InMemoryHabitCompletionRepository, HabitCompletionService) = {
     val svc = new DefaultHabitCompletionService(habitRepo, completionRepo, clock)
     (habitRepo, completionRepo, svc)
