@@ -13,17 +13,20 @@ import java.util.UUID
 trait HabitCompletionService {
 
   def recordCompletion(
+      userId: Long,
       habitId: UUID,
       req: CreateHabitCompletionRequest
   ): IO[Either[AppError, HabitCompletionResponse]]
 
   def listCompletions(
+      userId: Long,
       habitId: UUID,
       from: Option[LocalDate],
       to: Option[LocalDate]
   ): IO[Either[AppError, List[HabitCompletionResponse]]]
 
   def deleteCompletion(
+      userId: Long,
       habitId: UUID,
       completionId: UUID
   ): IO[Either[AppError, Unit]]
@@ -36,10 +39,11 @@ final class DefaultHabitCompletionService(
 ) extends HabitCompletionService {
 
   override def recordCompletion(
+      userId: Long,
       habitId: UUID,
       req: CreateHabitCompletionRequest
   ): IO[Either[AppError, HabitCompletionResponse]] =
-    habitRepo.findActiveById(habitId).flatMap {
+    habitRepo.findActiveById(userId, habitId).flatMap {
       case None =>
         IO.pure(Left(NotFound(s"Habit '$habitId' not found")))
       case Some(_) =>
@@ -61,11 +65,12 @@ final class DefaultHabitCompletionService(
     }
 
   override def listCompletions(
+      userId: Long,
       habitId: UUID,
       from: Option[LocalDate],
       to: Option[LocalDate]
   ): IO[Either[AppError, List[HabitCompletionResponse]]] =
-    habitRepo.findActiveById(habitId).flatMap {
+    habitRepo.findActiveById(userId, habitId).flatMap {
       case None =>
         IO.pure(Left(NotFound(s"Habit '$habitId' not found")))
       case Some(_) =>
@@ -75,10 +80,11 @@ final class DefaultHabitCompletionService(
     }
 
   override def deleteCompletion(
+      userId: Long,
       habitId: UUID,
       completionId: UUID
   ): IO[Either[AppError, Unit]] =
-    habitRepo.findActiveById(habitId).flatMap {
+    habitRepo.findActiveById(userId, habitId).flatMap {
       case None =>
         IO.pure(Left(NotFound(s"Habit '$habitId' not found")))
       case Some(_) =>

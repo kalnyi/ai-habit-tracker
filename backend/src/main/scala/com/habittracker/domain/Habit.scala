@@ -5,6 +5,7 @@ import java.util.UUID
 
 final case class Habit(
     id: UUID,
+    userId: Long,
     name: String,
     description: Option[String],
     frequency: Frequency,

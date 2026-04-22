@@ -101,10 +101,11 @@ class DoobieHabitRepositorySpec
       name: String = "Test habit",
       description: Option[String] = None,
       frequency: Frequency = Frequency.Daily,
+      userId: Long = 1L,
       deletedAt: Option[Instant] = None
   ): Habit = {
     val now = Instant.now()
-    Habit(UUID.randomUUID(), name, description, frequency, now, now, deletedAt)
+    Habit(UUID.randomUUID(), userId, name, description, frequency, now, now, deletedAt)
   }
 
   private def run[A](io: IO[A]): A = io.unsafeRunSync()
@@ -119,10 +120,11 @@ class DoobieHabitRepositorySpec
       val habit = makeHabit(name = "Read", description = None)
       run(repo.create(habit))
 
-      val found = run(repo.findActiveById(habit.id))
+      val found = run(repo.findActiveById(1L, habit.id))
       found should not be empty
       val h = found.get
       h.id shouldBe habit.id
+      h.userId shouldBe 1L
       h.name shouldBe "Read"
       h.description shouldBe None
       h.frequency shouldBe Frequency.Daily
@@ -135,21 +137,29 @@ class DoobieHabitRepositorySpec
       val habit = makeHabit(name = "Exercise", description = Some("30 minutes"))
       run(repo.create(habit))
 
-      val found = run(repo.findActiveById(habit.id))
+      val found = run(repo.findActiveById(1L, habit.id))
       found.map(_.description) shouldBe Some(Some("30 minutes"))
     }
 
     "return None for a non-existent id" in {
-      val result = run(repo.findActiveById(UUID.randomUUID()))
+      val result = run(repo.findActiveById(1L, UUID.randomUUID()))
       result shouldBe None
     }
 
     "return None for a soft-deleted habit" in {
       val habit = makeHabit()
       run(repo.create(habit))
-      run(repo.softDelete(habit.id, Instant.now()))
+      run(repo.softDelete(1L, habit.id, Instant.now()))
 
-      val result = run(repo.findActiveById(habit.id))
+      val result = run(repo.findActiveById(1L, habit.id))
+      result shouldBe None
+    }
+
+    "return None when habit belongs to a different user (DB-layer ownership filter)" in {
+      val habit = makeHabit(userId = 1L)
+      run(repo.create(habit))
+
+      val result = run(repo.findActiveById(2L, habit.id))
       result shouldBe None
     }
   }
@@ -165,9 +175,9 @@ class DoobieHabitRepositorySpec
       run(repo.create(h1))
       run(repo.create(h2))
       run(repo.create(h3))
-      run(repo.softDelete(h3.id, Instant.now()))
+      run(repo.softDelete(1L, h3.id, Instant.now()))
 
-      val list = run(repo.listActive())
+      val list = run(repo.listActive(1L))
       list.length shouldBe 2
       list.map(_.name) should contain("First")
       list.map(_.name) should contain("Second")
@@ -177,7 +187,7 @@ class DoobieHabitRepositorySpec
     }
 
     "return empty list when no active habits exist" in {
-      val list = run(repo.listActive())
+      val list = run(repo.listActive(1L))
       list shouldBe empty
     }
   }
@@ -190,7 +200,7 @@ class DoobieHabitRepositorySpec
 
       val updatedAt = Instant.now().plusSeconds(1)
       val result = run(
-        repo.updateActive(habit.id, "New name", Some("New desc"), Frequency.Weekly, updatedAt)
+        repo.updateActive(1L, habit.id, "New name", Some("New desc"), Frequency.Weekly, updatedAt)
       )
 
       result should not be empty
@@ -206,7 +216,7 @@ class DoobieHabitRepositorySpec
 
     "return None when habit does not exist" in {
       val result = run(
-        repo.updateActive(UUID.randomUUID(), "name", None, Frequency.Daily, Instant.now())
+        repo.updateActive(1L, UUID.randomUUID(), "name", None, Frequency.Daily, Instant.now())
       )
       result shouldBe None
     }
@@ -214,10 +224,10 @@ class DoobieHabitRepositorySpec
     "return None and not update a soft-deleted row" in {
       val habit = makeHabit()
       run(repo.create(habit))
-      run(repo.softDelete(habit.id, Instant.now()))
+      run(repo.softDelete(1L, habit.id, Instant.now()))
 
       val result = run(
-        repo.updateActive(habit.id, "New name", None, Frequency.Weekly, Instant.now())
+        repo.updateActive(1L, habit.id, "New name", None, Frequency.Weekly, Instant.now())
       )
       result shouldBe None
 
@@ -238,7 +248,7 @@ class DoobieHabitRepositorySpec
       val habit = makeHabit()
       run(repo.create(habit))
 
-      val result = run(repo.softDelete(habit.id, Instant.now()))
+      val result = run(repo.softDelete(1L, habit.id, Instant.now()))
       result shouldBe true
     }
 
@@ -246,15 +256,15 @@ class DoobieHabitRepositorySpec
       val habit = makeHabit()
       run(repo.create(habit))
 
-      run(repo.softDelete(habit.id, Instant.now()))
-      val result = run(repo.softDelete(habit.id, Instant.now()))
+      run(repo.softDelete(1L, habit.id, Instant.now()))
+      val result = run(repo.softDelete(1L, habit.id, Instant.now()))
       result shouldBe false
     }
 
     "keep the row physically present with a non-null deleted_at (PBI-006 AC)" in {
       val habit = makeHabit()
       run(repo.create(habit))
-      run(repo.softDelete(habit.id, Instant.now()))
+      run(repo.softDelete(1L, habit.id, Instant.now()))
 
       // Raw SQL assertion: row still exists
       val rowCount = sql"SELECT COUNT(*) FROM habits WHERE id = ${habit.id}"
@@ -276,7 +286,7 @@ class DoobieHabitRepositorySpec
     }
 
     "return false when deleting a non-existent id" in {
-      val result = run(repo.softDelete(UUID.randomUUID(), Instant.now()))
+      val result = run(repo.softDelete(1L, UUID.randomUUID(), Instant.now()))
       result shouldBe false
     }
   }

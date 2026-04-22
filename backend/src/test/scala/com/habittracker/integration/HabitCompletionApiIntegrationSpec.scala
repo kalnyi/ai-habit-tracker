@@ -167,7 +167,7 @@ class HabitCompletionApiIntegrationSpec
 
   private def createHabit(name: String = "Run"): HabitResponse =
     decode[HabitResponse](
-      sendPost("/habits", CreateHabitRequest(name, None, "daily").asJson.noSpaces).body()
+      sendPost("/users/1/habits", CreateHabitRequest(name, None, "daily").asJson.noSpaces).body()
     ).toOption.get
 
   private val today     = LocalDate.of(2026, 4, 17)
@@ -178,12 +178,12 @@ class HabitCompletionApiIntegrationSpec
   // PBI-009: Record a habit completion
   // ---------------------------------------------------------------------------
 
-  "POST /habits/{habitId}/completions (PBI-009)" should {
+  "POST /users/1/habits/{habitId}/completions (PBI-009)" should {
 
     "return 201 with all expected response fields on valid input" in {
       val habit = createHabit()
       val resp  = sendPost(
-        s"/habits/${habit.id}/completions",
+        s"/users/1/habits/${habit.id}/completions",
         CreateHabitCompletionRequest(today, Some("Felt energised")).asJson.noSpaces
       )
       resp.statusCode() shouldBe 201
@@ -197,7 +197,7 @@ class HabitCompletionApiIntegrationSpec
 
     "return 404 for a non-existent habitId" in {
       val resp = sendPost(
-        s"/habits/${UUID.randomUUID()}/completions",
+        s"/users/1/habits/${UUID.randomUUID()}/completions",
         CreateHabitCompletionRequest(today, None).asJson.noSpaces
       )
       resp.statusCode() shouldBe 404
@@ -207,19 +207,19 @@ class HabitCompletionApiIntegrationSpec
       val habit = createHabit()
       val body  = CreateHabitCompletionRequest(today, None).asJson.noSpaces
 
-      sendPost(s"/habits/${habit.id}/completions", body).statusCode() shouldBe 201
-      sendPost(s"/habits/${habit.id}/completions", body).statusCode() shouldBe 409
+      sendPost(s"/users/1/habits/${habit.id}/completions", body).statusCode() shouldBe 201
+      sendPost(s"/users/1/habits/${habit.id}/completions", body).statusCode() shouldBe 409
     }
 
     "return 400 when completedOn is not a valid date string" in {
       val habit = createHabit()
-      sendPost(s"/habits/${habit.id}/completions", """{"completedOn":"not-a-date"}""")
+      sendPost(s"/users/1/habits/${habit.id}/completions", """{"completedOn":"not-a-date"}""")
         .statusCode() shouldBe 400
     }
 
     "return 400 when habitId is not a valid UUID" in {
       sendPost(
-        "/habits/not-a-uuid/completions",
+        "/users/1/habits/not-a-uuid/completions",
         CreateHabitCompletionRequest(today, None).asJson.noSpaces
       ).statusCode() shouldBe 400
     }
@@ -229,18 +229,18 @@ class HabitCompletionApiIntegrationSpec
   // PBI-010: List completions for a habit
   // ---------------------------------------------------------------------------
 
-  "GET /habits/{habitId}/completions (PBI-010)" should {
+  "GET /users/1/habits/{habitId}/completions (PBI-010)" should {
 
     "return completions ordered by completedOn DESC" in {
       val habit = createHabit()
-      sendPost(s"/habits/${habit.id}/completions",
+      sendPost(s"/users/1/habits/${habit.id}/completions",
         CreateHabitCompletionRequest(yesterday, None).asJson.noSpaces)
-      sendPost(s"/habits/${habit.id}/completions",
+      sendPost(s"/users/1/habits/${habit.id}/completions",
         CreateHabitCompletionRequest(today, None).asJson.noSpaces)
-      sendPost(s"/habits/${habit.id}/completions",
+      sendPost(s"/users/1/habits/${habit.id}/completions",
         CreateHabitCompletionRequest(tomorrow, None).asJson.noSpaces)
 
-      val resp = sendGet(s"/habits/${habit.id}/completions")
+      val resp = sendGet(s"/users/1/habits/${habit.id}/completions")
       resp.statusCode() shouldBe 200
       val list = decode[List[HabitCompletionResponse]](resp.body()).toOption.get
       list.length shouldBe 3
@@ -249,14 +249,14 @@ class HabitCompletionApiIntegrationSpec
 
     "apply from and to filters" in {
       val habit = createHabit()
-      sendPost(s"/habits/${habit.id}/completions",
+      sendPost(s"/users/1/habits/${habit.id}/completions",
         CreateHabitCompletionRequest(yesterday, None).asJson.noSpaces)
-      sendPost(s"/habits/${habit.id}/completions",
+      sendPost(s"/users/1/habits/${habit.id}/completions",
         CreateHabitCompletionRequest(today, None).asJson.noSpaces)
-      sendPost(s"/habits/${habit.id}/completions",
+      sendPost(s"/users/1/habits/${habit.id}/completions",
         CreateHabitCompletionRequest(tomorrow, None).asJson.noSpaces)
 
-      val resp = sendGet(s"/habits/${habit.id}/completions?from=$today&to=$today")
+      val resp = sendGet(s"/users/1/habits/${habit.id}/completions?from=$today&to=$today")
       resp.statusCode() shouldBe 200
       val list = decode[List[HabitCompletionResponse]](resp.body()).toOption.get
       list.length shouldBe 1
@@ -264,19 +264,19 @@ class HabitCompletionApiIntegrationSpec
     }
 
     "return 404 for a non-existent habitId" in {
-      sendGet(s"/habits/${UUID.randomUUID()}/completions").statusCode() shouldBe 404
+      sendGet(s"/users/1/habits/${UUID.randomUUID()}/completions").statusCode() shouldBe 404
     }
 
     "return 200 with body [] for a habit with no completions" in {
       val habit = createHabit()
-      val resp  = sendGet(s"/habits/${habit.id}/completions")
+      val resp  = sendGet(s"/users/1/habits/${habit.id}/completions")
       resp.statusCode() shouldBe 200
       resp.body() shouldBe "[]"
     }
 
     "return 400 when from is not a valid date" in {
       val habit = createHabit()
-      sendGet(s"/habits/${habit.id}/completions?from=not-a-date").statusCode() shouldBe 400
+      sendGet(s"/users/1/habits/${habit.id}/completions?from=not-a-date").statusCode() shouldBe 400
     }
   }
 
@@ -284,36 +284,36 @@ class HabitCompletionApiIntegrationSpec
   // PBI-011: Delete a habit completion
   // ---------------------------------------------------------------------------
 
-  "DELETE /habits/{habitId}/completions/{completionId} (PBI-011)" should {
+  "DELETE /users/1/habits/{habitId}/completions/{completionId} (PBI-011)" should {
 
     "return 204 and subsequent GET confirms row absent" in {
       val habit      = createHabit()
-      val createResp = sendPost(s"/habits/${habit.id}/completions",
+      val createResp = sendPost(s"/users/1/habits/${habit.id}/completions",
         CreateHabitCompletionRequest(today, None).asJson.noSpaces)
       val completion = decode[HabitCompletionResponse](createResp.body()).toOption.get
 
-      sendDelete(s"/habits/${habit.id}/completions/${completion.id}").statusCode() shouldBe 204
+      sendDelete(s"/users/1/habits/${habit.id}/completions/${completion.id}").statusCode() shouldBe 204
 
       val list = decode[List[HabitCompletionResponse]](
-        sendGet(s"/habits/${habit.id}/completions").body()
+        sendGet(s"/users/1/habits/${habit.id}/completions").body()
       ).toOption.get
       list shouldBe empty
     }
 
     "return 404 for a non-existent completionId" in {
       val habit = createHabit()
-      sendDelete(s"/habits/${habit.id}/completions/${UUID.randomUUID()}")
+      sendDelete(s"/users/1/habits/${habit.id}/completions/${UUID.randomUUID()}")
         .statusCode() shouldBe 404
     }
 
     "return 404 when completionId belongs to a different habitId" in {
       val habit1     = createHabit("Run")
       val habit2     = createHabit("Meditate")
-      val createResp = sendPost(s"/habits/${habit2.id}/completions",
+      val createResp = sendPost(s"/users/1/habits/${habit2.id}/completions",
         CreateHabitCompletionRequest(today, None).asJson.noSpaces)
       val completion = decode[HabitCompletionResponse](createResp.body()).toOption.get
 
-      sendDelete(s"/habits/${habit1.id}/completions/${completion.id}").statusCode() shouldBe 404
+      sendDelete(s"/users/1/habits/${habit1.id}/completions/${completion.id}").statusCode() shouldBe 404
     }
   }
 }

@@ -10,11 +10,12 @@ trait HabitRepository {
 
   def create(habit: Habit): IO[Unit]
 
-  def listActive(): IO[List[Habit]]
+  def listActive(userId: Long): IO[List[Habit]]
 
-  def findActiveById(id: UUID): IO[Option[Habit]]
+  def findActiveById(userId: Long, id: UUID): IO[Option[Habit]]
 
   def updateActive(
+      userId: Long,
       id: UUID,
       name: String,
       description: Option[String],
@@ -22,5 +23,5 @@ trait HabitRepository {
       updatedAt: Instant
   ): IO[Option[Habit]]
 
-  def softDelete(id: UUID, at: Instant): IO[Boolean]
+  def softDelete(userId: Long, id: UUID, at: Instant): IO[Boolean]
 }
