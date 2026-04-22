@@ -65,13 +65,13 @@ class DocsRoutesSpec extends AsyncWordSpec with AsyncIOSpec with Matchers {
           val json = parse(body).toOption.get
 
           val paths = json.hcursor.downField("paths")
-          paths.downField("/habits").succeeded                          shouldBe true
-          paths.downField("/habits/{id}").succeeded                     shouldBe true
-          paths.downField("/habits").downField("post").succeeded        shouldBe true
-          paths.downField("/habits").downField("get").succeeded         shouldBe true
-          paths.downField("/habits/{id}").downField("get").succeeded    shouldBe true
-          paths.downField("/habits/{id}").downField("put").succeeded    shouldBe true
-          paths.downField("/habits/{id}").downField("delete").succeeded shouldBe true
+          paths.downField("/users/{userId}/habits").succeeded                              shouldBe true
+          paths.downField("/users/{userId}/habits/{habitId}").succeeded                   shouldBe true
+          paths.downField("/users/{userId}/habits").downField("post").succeeded            shouldBe true
+          paths.downField("/users/{userId}/habits").downField("get").succeeded             shouldBe true
+          paths.downField("/users/{userId}/habits/{habitId}").downField("get").succeeded   shouldBe true
+          paths.downField("/users/{userId}/habits/{habitId}").downField("put").succeeded   shouldBe true
+          paths.downField("/users/{userId}/habits/{habitId}").downField("delete").succeeded shouldBe true
 
           val frequencyEnum =
             json.hcursor

@@ -10,15 +10,15 @@ import java.util.UUID
 
 trait HabitService {
 
-  def createHabit(req: CreateHabitRequest): IO[Either[AppError, HabitResponse]]
+  def createHabit(userId: Long, req: CreateHabitRequest): IO[Either[AppError, HabitResponse]]
 
-  def listHabits(): IO[Either[AppError, List[HabitResponse]]]
+  def listHabits(userId: Long): IO[Either[AppError, List[HabitResponse]]]
 
-  def getHabit(id: UUID): IO[Either[AppError, HabitResponse]]
+  def getHabit(userId: Long, id: UUID): IO[Either[AppError, HabitResponse]]
 
-  def updateHabit(id: UUID, req: UpdateHabitRequest): IO[Either[AppError, HabitResponse]]
+  def updateHabit(userId: Long, id: UUID, req: UpdateHabitRequest): IO[Either[AppError, HabitResponse]]
 
-  def deleteHabit(id: UUID): IO[Either[AppError, Unit]]
+  def deleteHabit(userId: Long, id: UUID): IO[Either[AppError, Unit]]
 }
 
 final class DefaultHabitService(
@@ -26,7 +26,7 @@ final class DefaultHabitService(
     clock: Clock[IO]
 ) extends HabitService {
 
-  override def createHabit(req: CreateHabitRequest): IO[Either[AppError, HabitResponse]] = {
+  override def createHabit(userId: Long, req: CreateHabitRequest): IO[Either[AppError, HabitResponse]] = {
     val validationResult: Either[AppError, Frequency] = for {
       _ <- validateName(req.name)
       freq <- Frequency.parse(req.frequency).left.map(msg => ValidationError(msg): AppError)
@@ -40,6 +40,7 @@ final class DefaultHabitService(
           id = UUID.randomUUID()
           habit = Habit(
             id = id,
+            userId = userId,
             name = req.name.trim,
             description = req.description.map(_.trim).filter(_.nonEmpty),
             frequency = freq,
@@ -52,16 +53,16 @@ final class DefaultHabitService(
     }
   }
 
-  override def listHabits(): IO[Either[AppError, List[HabitResponse]]] =
-    repo.listActive().map(habits => Right(habits.map(HabitResponse.fromHabit)))
+  override def listHabits(userId: Long): IO[Either[AppError, List[HabitResponse]]] =
+    repo.listActive(userId).map(habits => Right(habits.map(HabitResponse.fromHabit)))
 
-  override def getHabit(id: UUID): IO[Either[AppError, HabitResponse]] =
-    repo.findActiveById(id).map {
+  override def getHabit(userId: Long, id: UUID): IO[Either[AppError, HabitResponse]] =
+    repo.findActiveById(userId, id).map {
       case Some(h) => Right(HabitResponse.fromHabit(h))
       case None    => Left(NotFound(s"Habit with id '$id' not found"))
     }
 
-  override def updateHabit(id: UUID, req: UpdateHabitRequest): IO[Either[AppError, HabitResponse]] = {
+  override def updateHabit(userId: Long, id: UUID, req: UpdateHabitRequest): IO[Either[AppError, HabitResponse]] = {
     val validationResult: Either[AppError, Frequency] = for {
       _ <- validateName(req.name)
       freq <- Frequency.parse(req.frequency).left.map(msg => ValidationError(msg): AppError)
@@ -73,6 +74,7 @@ final class DefaultHabitService(
         clock.realTimeInstant.flatMap { now =>
           repo
             .updateActive(
+              userId,
               id,
               req.name.trim,
               req.description.map(_.trim).filter(_.nonEmpty),
@@ -87,9 +89,9 @@ final class DefaultHabitService(
     }
   }
 
-  override def deleteHabit(id: UUID): IO[Either[AppError, Unit]] =
+  override def deleteHabit(userId: Long, id: UUID): IO[Either[AppError, Unit]] =
     clock.realTimeInstant.flatMap { now =>
-      repo.softDelete(id, now).map {
+      repo.softDelete(userId, id, now).map {
         case true  => Right(())
         case false => Left(NotFound(s"Habit with id '$id' not found"))
       }

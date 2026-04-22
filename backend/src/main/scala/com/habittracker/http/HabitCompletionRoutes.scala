@@ -15,7 +15,7 @@ import java.util.UUID
 
 /** http4s routes for all HabitCompletion endpoints.
   *
-  * Owns the subtree: /habits/{habitId}/completions[/{completionId}]
+  * Owns the subtree: /users/{userId}/habits/{habitId}/completions[/{completionId}]
   *
   * UUID patterns come before wildcard `_` patterns so that valid UUIDs are
   * handled correctly and non-UUIDs return 400 (per API contract).
@@ -35,9 +35,9 @@ final class HabitCompletionRoutes(service: HabitCompletionService) {
 
   val routes: HttpRoutes[IO] = HttpRoutes.of[IO] {
 
-    case req @ POST -> Root / "habits" / UUIDVar(habitId) / "completions" =>
+    case req @ POST -> Root / "users" / LongVar(userId) / "habits" / UUIDVar(habitId) / "completions" =>
       req.as[CreateHabitCompletionRequest].flatMap { body =>
-        service.recordCompletion(habitId, body).flatMap {
+        service.recordCompletion(userId, habitId, body).flatMap {
           case Right(resp) => Created(resp)
           case Left(err)   => ErrorHandler.toResponse(err)
         }
@@ -45,35 +45,35 @@ final class HabitCompletionRoutes(service: HabitCompletionService) {
         BadRequest(ErrorResponse("Malformed request body"))
       }
 
-    case POST -> Root / "habits" / _ / "completions" =>
+    case POST -> Root / "users" / LongVar(_) / "habits" / _ / "completions" =>
       BadRequest(ErrorResponse("Invalid habit id: must be a valid UUID"))
 
-    case GET -> Root / "habits" / UUIDVar(habitId) / "completions" :? FromParam(fromOpt) +& ToParam(toOpt) =>
+    case GET -> Root / "users" / LongVar(userId) / "habits" / UUIDVar(habitId) / "completions" :? FromParam(fromOpt) +& ToParam(toOpt) =>
       val from = fromOpt.traverse(parseDate("from", _))
       val to   = toOpt.traverse(parseDate("to", _))
       (from, to) match {
         case (Left(msg), _) => BadRequest(ErrorResponse(msg))
         case (_, Left(msg)) => BadRequest(ErrorResponse(msg))
         case (Right(f), Right(t)) =>
-          service.listCompletions(habitId, f, t).flatMap {
+          service.listCompletions(userId, habitId, f, t).flatMap {
             case Right(list) => Ok(list)
             case Left(err)   => ErrorHandler.toResponse(err)
           }
       }
 
-    case GET -> Root / "habits" / _ / "completions" =>
+    case GET -> Root / "users" / LongVar(_) / "habits" / _ / "completions" =>
       BadRequest(ErrorResponse("Invalid habit id: must be a valid UUID"))
 
-    case DELETE -> Root / "habits" / UUIDVar(habitId) / "completions" / UUIDVar(completionId) =>
-      service.deleteCompletion(habitId, completionId).flatMap {
+    case DELETE -> Root / "users" / LongVar(userId) / "habits" / UUIDVar(habitId) / "completions" / UUIDVar(completionId) =>
+      service.deleteCompletion(userId, habitId, completionId).flatMap {
         case Right(_)  => NoContent()
         case Left(err) => ErrorHandler.toResponse(err)
       }
 
-    case DELETE -> Root / "habits" / UUIDVar(_) / "completions" / _ =>
+    case DELETE -> Root / "users" / LongVar(_) / "habits" / UUIDVar(_) / "completions" / _ =>
       BadRequest(ErrorResponse("Invalid completion id: must be a valid UUID"))
 
-    case DELETE -> Root / "habits" / _ / "completions" / _ =>
+    case DELETE -> Root / "users" / LongVar(_) / "habits" / _ / "completions" / _ =>
       BadRequest(ErrorResponse("Invalid habit id: must be a valid UUID"))
   }
 }
