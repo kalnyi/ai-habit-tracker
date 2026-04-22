@@ -217,6 +217,26 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
+  /users/{userId}/habits/insights:
+    parameters:
+      - name: userId
+        in: path
+        required: true
+        schema:
+          type: integer
+          format: int64
+    get:
+      summary: Get LLM-generated insights about a user's habit patterns
+      operationId: getHabitInsights
+      responses:
+        '200':
+          description: Successful response with analytics and narrative
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/InsightResponse'
+        '500':
+          description: Upstream LLM failure or internal error
   /users/{userId}/habits/{habitId}/completions/{completionId}:
     parameters:
       - name: userId
@@ -347,6 +367,41 @@ components:
         createdAt:
           type: string
           format: date-time
+    HabitContext:
+      type: object
+      required: [userId, streaks, completionByDay, consistencyRanking]
+      properties:
+        userId:
+          type: integer
+          format: int64
+        streaks:
+          type: object
+          additionalProperties:
+            type: integer
+        completionByDay:
+          type: object
+          additionalProperties:
+            type: number
+            format: double
+        consistencyRanking:
+          type: array
+          items:
+            type: array
+            minItems: 2
+            maxItems: 2
+            items:
+              oneOf:
+                - type: string
+                - type: number
+                  format: double
+    InsightResponse:
+      type: object
+      required: [analytics, narrative]
+      properties:
+        analytics:
+          $ref: '#/components/schemas/HabitContext'
+        narrative:
+          type: string
     ErrorResponse:
       type: object
       required:
