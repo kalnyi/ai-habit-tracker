@@ -10,17 +10,17 @@
   <logger name="com.habittracker" level="INFO"/>
 
   <!-- Akka internals at WARN to reduce noise -->
-  <logger name="akka" level="WARN"/>
+  <logger name="akka" level="INFO"/>
   <logger name="akka.http" level="WARN"/>
 
   <!-- HikariCP connection pool -->
   <logger name="com.zaxxer.hikari" level="WARN"/>
 
   <!-- Doobie -->
-  <logger name="doobie" level="WARN"/>
+  <logger name="doobie" level="INFO"/>
 
   <!-- Root logger -->
-  <root level="WARN">
+  <root level="DEBUG">
     <appender-ref ref="CONSOLE"/>
   </root>
 </configuration>
