@@ -1,59 +1,21 @@
 package com.habittracker.http
 
-import akka.http.scaladsl.model.StatusCodes
-import akka.http.scaladsl.server.Directives._
-import akka.http.scaladsl.server.{ExceptionHandler, MalformedRequestContentRejection, RejectionHandler, Route}
+import cats.effect.IO
 import com.habittracker.domain.AppError
-import com.habittracker.domain.AppError.{ConflictError, InvalidUuid, NotFound, ValidationError}
-import de.heikoseeberger.akkahttpcirce.FailFastCirceSupport
-import org.slf4j.LoggerFactory
+import com.habittracker.domain.AppError.{ConflictError, InvalidUuid, ValidationError}
+import com.habittracker.domain.AppError.{NotFound => DomainNotFound}
+import com.habittracker.http.HabitCodecs._
+import org.http4s.Response
+import org.http4s.circe.CirceEntityCodec._
+import org.http4s.dsl.io._
 
-object ErrorHandler extends FailFastCirceSupport {
+/** Translates domain AppError values into http4s Response[IO] values. */
+object ErrorHandler {
 
-  import HabitCodecs._
-
-  private val log = LoggerFactory.getLogger(getClass)
-
-  /** Translates an AppError into the appropriate HTTP response. */
-  def toRoute(error: AppError): Route = error match {
-    case ValidationError(msg) =>
-      complete(StatusCodes.BadRequest, ErrorResponse(msg))
-    case NotFound(msg) =>
-      complete(StatusCodes.NotFound, ErrorResponse(msg))
-    case InvalidUuid(msg) =>
-      complete(StatusCodes.BadRequest, ErrorResponse(msg))
-    case ConflictError(msg) =>
-      complete(StatusCodes.Conflict, ErrorResponse(msg))
+  def toResponse(error: AppError): IO[Response[IO]] = error match {
+    case ValidationError(msg) => BadRequest(ErrorResponse(msg))
+    case DomainNotFound(msg)  => NotFound(ErrorResponse(msg))
+    case InvalidUuid(msg)     => BadRequest(ErrorResponse(msg))
+    case ConflictError(msg)   => Conflict(ErrorResponse(msg))
   }
-
-  /** Maps any unhandled Throwable to 500 + a generic ErrorResponse. */
-  val exceptionHandler: ExceptionHandler =
-    ExceptionHandler { case ex: Throwable =>
-      log.error("Unhandled exception", ex)
-      complete(
-        StatusCodes.InternalServerError,
-        ErrorResponse("An internal server error occurred")
-      )
-    }
-
-  /** Maps well-known Akka HTTP rejections (malformed JSON, missing fields,
-    * wrong content-type) to 400 + ErrorResponse.
-    */
-  val rejectionHandler: RejectionHandler =
-    RejectionHandler
-      .newBuilder()
-      .handle { case MalformedRequestContentRejection(msg, _) =>
-        complete(
-          StatusCodes.BadRequest,
-          ErrorResponse(s"Malformed request body: $msg")
-        )
-      }
-      .handleNotFound {
-        complete(
-          StatusCodes.NotFound,
-          ErrorResponse("The requested resource was not found")
-        )
-      }
-      .result()
-      .withFallback(RejectionHandler.default)
 }

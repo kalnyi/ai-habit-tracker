@@ -9,14 +9,8 @@ version = '0.1.0-SNAPSHOT'
 ext {
     scalaVersion       = '2.13.14'
     scalaBinary        = '2.13'
-    // NOTE: The technical plan specified akka-http 10.6.3 / akka-stream 2.9.3,
-    // but those versions are published only to the Lightbend BSL private Maven
-    // repository (not Maven Central). The last publicly available stable release
-    // on Maven Central is akka-http 10.5.3 paired with akka-stream 2.8.8.
-    // This deviation is forced by dependency resolution and should be noted to
-    // the Architect for a plan update (or setup of the Lightbend resolver).
-    akkaHttpVersion    = '10.5.3'
-    akkaVersion        = '2.8.8'
+    http4sVersion      = '0.23.27'
+    tapirVersion       = '1.10.7'
     circeVersion       = '0.14.9'
     doobieVersion      = '1.0.0-RC5'
     liquibaseVersion   = '4.29.2'
@@ -64,29 +58,29 @@ configurations {
     liquibaseRuntime
 }
 
-configurations.all {
-    resolutionStrategy {
-        // Force consistent Akka versions to avoid binary-incompatible mixing
-        force "com.typesafe.akka:akka-actor_${scalaBinary}:${akkaVersion}"
-        force "com.typesafe.akka:akka-actor-typed_${scalaBinary}:${akkaVersion}"
-        force "com.typesafe.akka:akka-stream_${scalaBinary}:${akkaVersion}"
-        force "com.typesafe.akka:akka-slf4j_${scalaBinary}:${akkaVersion}"
-    }
-}
-
 dependencies {
     // Scala standard library
     implementation "org.scala-lang:scala-library:${scalaVersion}"
 
-    // Akka HTTP family (10.5.3 — latest stable on Maven Central)
-    implementation "com.typesafe.akka:akka-http_${scalaBinary}:${akkaHttpVersion}"
-    implementation "com.typesafe.akka:akka-http-core_${scalaBinary}:${akkaHttpVersion}"
-    implementation "com.typesafe.akka:akka-stream_${scalaBinary}:${akkaVersion}"
-    implementation "com.typesafe.akka:akka-actor-typed_${scalaBinary}:${akkaVersion}"
-    implementation "com.typesafe.akka:akka-slf4j_${scalaBinary}:${akkaVersion}"
+    // http4s stack (replaces Akka HTTP)
+    implementation "org.http4s:http4s-ember-server_${scalaBinary}:${http4sVersion}"
+    implementation "org.http4s:http4s-ember-client_${scalaBinary}:${http4sVersion}"
+    implementation "org.http4s:http4s-circe_${scalaBinary}:${http4sVersion}"
+    implementation "org.http4s:http4s-dsl_${scalaBinary}:${http4sVersion}"
 
-    // JSON: Circe + akka-http-circe bridge (1.39.2 is binary-compatible with 10.5.x)
-    implementation "de.heikoseeberger:akka-http-circe_${scalaBinary}:1.39.2"
+    // sttp client3 (for downstream HTTP calls)
+    implementation "com.softwaremill.sttp.client3:cats_${scalaBinary}:3.9.7"
+    implementation "com.softwaremill.sttp.client3:circe_${scalaBinary}:3.9.7"
+
+    // Tapir (OpenAPI/docs generation, replaces manual DocsRoutes if desired)
+    implementation "com.softwaremill.sttp.tapir:tapir-http4s-server_${scalaBinary}:${tapirVersion}"
+    implementation "com.softwaremill.sttp.tapir:tapir-swagger-ui-bundle_${scalaBinary}:${tapirVersion}"
+    implementation "com.softwaremill.sttp.tapir:tapir-json-circe_${scalaBinary}:${tapirVersion}"
+
+    // ip4s literals used in Main (pulled transitively by http4s, listed explicitly)
+    implementation "com.comcast:ip4s-core_${scalaBinary}:3.4.0"
+
+    // JSON: Circe
     implementation "io.circe:circe-core_${scalaBinary}:${circeVersion}"
     implementation "io.circe:circe-generic_${scalaBinary}:${circeVersion}"
     implementation "io.circe:circe-parser_${scalaBinary}:${circeVersion}"
@@ -126,9 +120,8 @@ dependencies {
     // Test dependencies
     testImplementation "org.scalatest:scalatest_2.13:3.2.19"
     testImplementation "org.typelevel:cats-effect-testing-scalatest_${scalaBinary}:1.5.0"
-    testImplementation "com.typesafe.akka:akka-http-testkit_${scalaBinary}:${akkaHttpVersion}"
-    testImplementation "com.typesafe.akka:akka-stream-testkit_${scalaBinary}:${akkaVersion}"
-    testImplementation "com.typesafe.akka:akka-actor-testkit-typed_${scalaBinary}:${akkaVersion}"
+    testImplementation "org.typelevel:munit-cats-effect_${scalaBinary}:2.0.0"
+    testImplementation "org.http4s:http4s-laws_${scalaBinary}:${http4sVersion}"
     // NOTE: Plan specified 1.20.1, bumped to 1.20.6 to fix Docker Desktop 4.x
     // named pipe compatibility issue on Windows (1.20.1 fails to validate
     // /info response from the Docker Desktop CLI shim).

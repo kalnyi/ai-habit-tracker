@@ -1,4 +1,4 @@
-- [Akka HTTP pinned to 10.5.3 / 2.8.8](project_akka_versions_pinned.md) — 10.6.x is BSL-only; Maven Central tops out at 10.5.3
+- [http4s stack + AppResources DI pattern](project_http4s_stack.md) — http4s 0.23.27 replaced Akka HTTP (ADR-006); unified IO effect model, no Future/IO bridge
 - [SnakeYAML already on classpath](project_snakeyaml_transitive.md) — liquibase-core 4.29.2 pulls it in; don't add circe-yaml
-- [Future/IO boundary rule](project_effect_boundary_rule.md) — routes use Future, services use IO, bridge via unsafeToFuture()
 - [Gradle 9 plugin incompatibilities](project_gradle9_no_wrapper.md) — system Gradle 9.4.1, no wrapper; fall back to JavaExec when plugins break
+- [Akka HTTP pinned (HISTORICAL)](project_akka_versions_pinned.md) — OBSOLETE: Akka HTTP removed in ADR-006 migration
