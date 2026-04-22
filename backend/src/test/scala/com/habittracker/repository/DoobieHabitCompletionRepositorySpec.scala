@@ -20,7 +20,7 @@ import java.time.{Instant, LocalDate}
 import java.util.UUID
 
 // requires Docker - run manually
-@Ignore
+//@Ignore
 @RunWith(classOf[JUnitRunner])
 class DoobieHabitCompletionRepositorySpec
     extends AnyWordSpec
@@ -61,7 +61,7 @@ class DoobieHabitCompletionRepositorySpec
       val database = DatabaseFactory.getInstance()
         .findCorrectDatabaseImplementation(new JdbcConnection(jdbcConn))
       val accessor = new DirectoryResourceAccessor(
-        Paths.get("../../infra/db/changelog").toAbsolutePath.normalize
+        Paths.get("../infra/db/changelog").toAbsolutePath.normalize
       )
       val liquibase = new Liquibase("db.changelog-master.xml", accessor, database)
       liquibase.update("")

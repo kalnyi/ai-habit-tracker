@@ -1,0 +1,1 @@
+- [Plan directory conventions](project_plan_directories.md) — docs/plans/ is per-PBI; docs/technical-plans/ is for multi-PBI batches, per engineer override.
