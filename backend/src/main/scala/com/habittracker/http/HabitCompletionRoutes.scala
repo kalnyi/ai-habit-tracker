@@ -1,113 +1,79 @@
 package com.habittracker.http
 
-import akka.http.scaladsl.model.StatusCodes
-import akka.http.scaladsl.server.Directives._
-import akka.http.scaladsl.server.Route
-import cats.effect.unsafe.IORuntime
+import cats.effect.IO
+import cats.syntax.all._
 import com.habittracker.http.CompletionCodecs._
 import com.habittracker.http.HabitCodecs._
 import com.habittracker.http.dto.CreateHabitCompletionRequest
 import com.habittracker.service.HabitCompletionService
+import org.http4s._
+import org.http4s.circe.CirceEntityCodec._
+import org.http4s.dsl.io._
 
 import java.time.LocalDate
 import java.util.UUID
 
-/** Akka HTTP routes for all HabitCompletion endpoints.
+/** http4s routes for all HabitCompletion endpoints.
   *
   * Owns the subtree: /habits/{habitId}/completions[/{completionId}]
   *
-  * Concatenated with HabitRoutes in Main. Akka HTTP tries each route in order;
-  * a non-matching branch falls through. The existing HabitRoutes.path(Segment)
-  * fallback only matches single-segment paths (/habits/not-a-uuid), not multi-
-  * segment ones, so there is no conflict.
-  *
-  * This class includes its own non-UUID-habitId fallback so that requests like
-  * /habits/not-a-uuid/completions return 400 regardless of route ordering.
+  * UUID patterns come before wildcard `_` patterns so that valid UUIDs are
+  * handled correctly and non-UUIDs return 400 (per API contract).
   */
-final class HabitCompletionRoutes(service: HabitCompletionService)(implicit runtime: IORuntime)
-    extends JsonSupport {
+final class HabitCompletionRoutes(service: HabitCompletionService) {
 
-  private def parseDate(
-      paramName: String,
-      value: Option[String]
-  ): Either[String, Option[LocalDate]] =
-    value match {
-      case None    => Right(None)
-      case Some(s) =>
-        scala.util.Try(LocalDate.parse(s)).toEither.left
-          .map(e => s"Invalid '$paramName' date: ${e.getMessage}")
-          .map(Some(_))
-    }
+  private object UUIDVar {
+    def unapply(str: String): Option[UUID] =
+      scala.util.Try(UUID.fromString(str)).toOption
+  }
 
-  val route: Route =
-    handleExceptions(ErrorHandler.exceptionHandler) {
-      handleRejections(ErrorHandler.rejectionHandler) {
-        pathPrefix("habits") {
-          concat(
-            // Valid UUID habitId
-            pathPrefix(JavaUUID) { habitId: UUID =>
-              pathPrefix("completions") {
-                concat(
-                  // POST /habits/{habitId}/completions
-                  // GET  /habits/{habitId}/completions[?from=...&to=...]
-                  pathEndOrSingleSlash {
-                    concat(
-                      (post & entity(as[CreateHabitCompletionRequest])) { req =>
-                        onSuccess(service.recordCompletion(habitId, req).unsafeToFuture()) {
-                          case Right(resp) => complete(StatusCodes.Created, resp)
-                          case Left(err)   => ErrorHandler.toRoute(err)
-                        }
-                      },
-                      (get & parameters(
-                        "from".as[String].optional,
-                        "to".as[String].optional
-                      )) { (fromStr, toStr) =>
-                        val parsedFrom = parseDate("from", fromStr)
-                        val parsedTo   = parseDate("to", toStr)
-                        (parsedFrom, parsedTo) match {
-                          case (Left(msg), _) =>
-                            complete(StatusCodes.BadRequest, ErrorResponse(msg))
-                          case (_, Left(msg)) =>
-                            complete(StatusCodes.BadRequest, ErrorResponse(msg))
-                          case (Right(from), Right(to)) =>
-                            onSuccess(service.listCompletions(habitId, from, to).unsafeToFuture()) {
-                              case Right(list) => complete(StatusCodes.OK, list)
-                              case Left(err)   => ErrorHandler.toRoute(err)
-                            }
-                        }
-                      }
-                    )
-                  },
-                  // DELETE /habits/{habitId}/completions/{completionId}
-                  path(JavaUUID) { completionId: UUID =>
-                    delete {
-                      onSuccess(service.deleteCompletion(habitId, completionId).unsafeToFuture()) {
-                        case Right(_)  => complete(StatusCodes.NoContent)
-                        case Left(err) => ErrorHandler.toRoute(err)
-                      }
-                    }
-                  },
-                  // Non-UUID completionId
-                  path(Segment) { _ =>
-                    complete(
-                      StatusCodes.BadRequest,
-                      ErrorResponse("Invalid completion id: must be a valid UUID")
-                    )
-                  }
-                )
-              }
-            },
-            // Non-UUID habitId on /habits/<not-uuid>/completions paths
-            pathPrefix(Segment) { _ =>
-              pathPrefix("completions") {
-                complete(
-                  StatusCodes.BadRequest,
-                  ErrorResponse("Invalid habit id: must be a valid UUID")
-                )
-              }
-            }
-          )
+  private object FromParam extends OptionalQueryParamDecoderMatcher[String]("from")
+  private object ToParam   extends OptionalQueryParamDecoderMatcher[String]("to")
+
+  private def parseDate(name: String, s: String): Either[String, LocalDate] =
+    scala.util.Try(LocalDate.parse(s)).toEither.left.map(e => s"Invalid '$name' date: ${e.getMessage}")
+
+  val routes: HttpRoutes[IO] = HttpRoutes.of[IO] {
+
+    case req @ POST -> Root / "habits" / UUIDVar(habitId) / "completions" =>
+      req.as[CreateHabitCompletionRequest].flatMap { body =>
+        service.recordCompletion(habitId, body).flatMap {
+          case Right(resp) => Created(resp)
+          case Left(err)   => ErrorHandler.toResponse(err)
         }
+      }.handleErrorWith { case _: DecodeFailure =>
+        BadRequest(ErrorResponse("Malformed request body"))
       }
-    }
+
+    case POST -> Root / "habits" / _ / "completions" =>
+      BadRequest(ErrorResponse("Invalid habit id: must be a valid UUID"))
+
+    case GET -> Root / "habits" / UUIDVar(habitId) / "completions" :? FromParam(fromOpt) +& ToParam(toOpt) =>
+      val from = fromOpt.traverse(parseDate("from", _))
+      val to   = toOpt.traverse(parseDate("to", _))
+      (from, to) match {
+        case (Left(msg), _) => BadRequest(ErrorResponse(msg))
+        case (_, Left(msg)) => BadRequest(ErrorResponse(msg))
+        case (Right(f), Right(t)) =>
+          service.listCompletions(habitId, f, t).flatMap {
+            case Right(list) => Ok(list)
+            case Left(err)   => ErrorHandler.toResponse(err)
+          }
+      }
+
+    case GET -> Root / "habits" / _ / "completions" =>
+      BadRequest(ErrorResponse("Invalid habit id: must be a valid UUID"))
+
+    case DELETE -> Root / "habits" / UUIDVar(habitId) / "completions" / UUIDVar(completionId) =>
+      service.deleteCompletion(habitId, completionId).flatMap {
+        case Right(_)  => NoContent()
+        case Left(err) => ErrorHandler.toResponse(err)
+      }
+
+    case DELETE -> Root / "habits" / UUIDVar(_) / "completions" / _ =>
+      BadRequest(ErrorResponse("Invalid completion id: must be a valid UUID"))
+
+    case DELETE -> Root / "habits" / _ / "completions" / _ =>
+      BadRequest(ErrorResponse("Invalid habit id: must be a valid UUID"))
+  }
 }

@@ -1,12 +1,21 @@
 package com.habittracker.http
 
-import akka.http.scaladsl.model._
-import akka.http.scaladsl.server.Directives._
-import akka.http.scaladsl.server.Route
+import cats.effect.IO
 import io.circe.Json
+import org.http4s._
+import org.http4s.dsl.io._
+import org.http4s.headers.`Content-Type`
+
 import scala.jdk.CollectionConverters._
 
-
+/** http4s routes for API documentation.
+  *
+  * Serves:
+  *   GET /docs            — Swagger UI index page (HTML)
+  *   GET /docs/openapi.yaml — raw OpenAPI spec (YAML)
+  *   GET /docs/openapi.json — OpenAPI spec converted to JSON
+  *   GET /docs/ui/{file}  — swagger-ui WebJar static assets
+  */
 final class DocsRoutes {
 
   // ---------------------------------------------------------------------------
@@ -20,10 +29,12 @@ final class DocsRoutes {
     finally stream.close()
   }
 
+  private val specYamlString: String = new String(specYamlBytes, "UTF-8")
+
   private val specJsonString: String = {
     import org.yaml.snakeyaml.Yaml
     val yaml   = new Yaml()
-    val parsed = yaml.load[Any](new String(specYamlBytes, "UTF-8"))
+    val parsed = yaml.load[Any](specYamlString)
     snakeYamlToCirce(parsed).noSpaces
   }
 
@@ -39,27 +50,24 @@ final class DocsRoutes {
   // ---------------------------------------------------------------------------
 
   private def snakeYamlToCirce(obj: Any): Json = obj match {
-    case null                        => Json.Null
-    case m: java.util.Map[_, _]      =>
+    case null                   => Json.Null
+    case m: java.util.Map[_, _] =>
       Json.obj(m.asScala.map { case (k, v) => k.toString -> snakeYamlToCirce(v) }.toSeq: _*)
-    case l: java.util.List[_]        =>
+    case l: java.util.List[_]   =>
       Json.arr(l.asScala.map(snakeYamlToCirce).toSeq: _*)
-    case s: String                   => Json.fromString(s)
-    case n: java.lang.Integer        => Json.fromLong(n.longValue())
-    case n: java.lang.Long           => Json.fromLong(n.longValue())
-    case n: java.lang.Number         => Json.fromDoubleOrNull(n.doubleValue())
-    case b: java.lang.Boolean        => Json.fromBoolean(b)
-    case other                       => Json.fromString(other.toString)
+    case s: String              => Json.fromString(s)
+    case n: java.lang.Integer   => Json.fromLong(n.longValue())
+    case n: java.lang.Long      => Json.fromLong(n.longValue())
+    case n: java.lang.Number    => Json.fromDoubleOrNull(n.doubleValue())
+    case b: java.lang.Boolean   => Json.fromBoolean(b)
+    case other                  => Json.fromString(other.toString)
   }
 
   // ---------------------------------------------------------------------------
-  // Content-Types
+  // Media type constants
   // ---------------------------------------------------------------------------
 
-  private val yamlContentType: ContentType =
-    ContentType(
-      MediaType.customWithFixedCharset("application", "x-yaml", HttpCharsets.`UTF-8`)
-    )
+  private val yamlMediaType: MediaType = MediaType.unsafeParse("application/x-yaml")
 
   // ---------------------------------------------------------------------------
   // WebJar version constant — must match build.gradle
@@ -71,37 +79,27 @@ final class DocsRoutes {
   // Route tree
   // ---------------------------------------------------------------------------
 
-  val route: Route =
-    pathPrefix("docs") {
-      concat(
-        // GET /docs — Swagger UI index page
-        pathEndOrSingleSlash {
-          get {
-            complete(HttpEntity(ContentTypes.`text/html(UTF-8)`, indexHtml))
-          }
-        },
-        // GET /docs/openapi.yaml
-        path("openapi.yaml") {
-          get {
-            complete(HttpEntity(yamlContentType, specYamlBytes))
-          }
-        },
-        // GET /docs/openapi.json
-        path("openapi.json") {
-          get {
-            complete(HttpEntity(ContentTypes.`application/json`, specJsonString))
-          }
-        },
-        // GET /docs/ui/{file} — served from swagger-ui WebJar
-        pathPrefix("ui") {
-          path(Remaining) { file =>
-            get {
-              getFromResource(
-                s"META-INF/resources/webjars/swagger-ui/$swaggerUiVersion/$file"
-              )
-            }
-          }
-        }
-      )
-    }
+  val routes: HttpRoutes[IO] = HttpRoutes.of[IO] {
+
+    case GET -> Root / "docs" =>
+      Ok(indexHtml, `Content-Type`(MediaType.text.html, Charset.`UTF-8`))
+
+    case GET -> Root / "docs" / "openapi.yaml" =>
+      Ok(specYamlString, `Content-Type`(yamlMediaType))
+
+    case GET -> Root / "docs" / "openapi.json" =>
+      Ok(specJsonString, `Content-Type`(MediaType.application.json))
+
+    case GET -> Root / "docs" / "ui" / file =>
+      IO {
+        Option(
+          getClass.getClassLoader.getResourceAsStream(
+            s"META-INF/resources/webjars/swagger-ui/$swaggerUiVersion/$file"
+          )
+        ).map { s => try s.readAllBytes() finally s.close() }
+      }.flatMap {
+        case Some(bytes) => Ok(bytes)
+        case None        => NotFound()
+      }
+  }
 }

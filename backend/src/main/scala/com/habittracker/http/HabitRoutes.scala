@@ -1,84 +1,75 @@
 package com.habittracker.http
 
-import akka.http.scaladsl.model.StatusCodes
-import akka.http.scaladsl.server.Directives._
-import akka.http.scaladsl.server.Route
-import cats.effect.unsafe.IORuntime
+import cats.effect.IO
 import com.habittracker.http.HabitCodecs._
 import com.habittracker.http.dto.{CreateHabitRequest, UpdateHabitRequest}
 import com.habittracker.service.HabitService
+import org.http4s._
+import org.http4s.circe.CirceEntityCodec._
+import org.http4s.dsl.io._
 
 import java.util.UUID
 
-/** Akka HTTP routes for all Habit CRUD endpoints.
+/** http4s routes for all Habit CRUD endpoints.
   *
-  * Effect-type boundary: this class uses Future at the Akka HTTP layer.
-  * All IO values are bridged via `.unsafeToFuture()` using the implicit
-  * IORuntime wired in Main. No Await.result is used anywhere.
-  *
-  * UUID validation: Akka HTTP's `JavaUUID` path matcher requires a valid UUID.
-  * When a path segment does not parse as a UUID, the inner `path(JavaUUID)`
-  * route does not match. We add an explicit fallback `path(Segment)` that
-  * completes with 400, so that `/habits/not-a-uuid` returns 400 rather than
-  * 404 (the plan mandates 400 for an invalid UUID format).
+  * UUID validation: the private UUIDVar extractor tries to parse the path segment
+  * as a UUID. When it fails, the catch-all `_` patterns return 400 so that
+  * /habits/not-a-uuid returns 400 instead of 404 (per API contract).
   */
-final class HabitRoutes(service: HabitService)(implicit runtime: IORuntime)
-    extends JsonSupport {
+final class HabitRoutes(service: HabitService) {
 
-  val route: Route =
-    handleExceptions(ErrorHandler.exceptionHandler) {
-      handleRejections(ErrorHandler.rejectionHandler) {
-        pathPrefix("habits") {
-          concat(
-            // POST /habits and GET /habits
-            pathEndOrSingleSlash {
-              concat(
-                (post & entity(as[CreateHabitRequest])) { req =>
-                  onSuccess(service.createHabit(req).unsafeToFuture()) {
-                    case Right(habit) => complete(StatusCodes.Created, habit)
-                    case Left(err)    => ErrorHandler.toRoute(err)
-                  }
-                },
-                get {
-                  onSuccess(service.listHabits().unsafeToFuture()) {
-                    case Right(habits) => complete(StatusCodes.OK, habits)
-                    case Left(err)     => ErrorHandler.toRoute(err)
-                  }
-                }
-              )
-            },
-            // GET /habits/{id}, PUT /habits/{id}, DELETE /habits/{id}
-            path(JavaUUID) { id: UUID =>
-              concat(
-                get {
-                  onSuccess(service.getHabit(id).unsafeToFuture()) {
-                    case Right(habit) => complete(StatusCodes.OK, habit)
-                    case Left(err)    => ErrorHandler.toRoute(err)
-                  }
-                },
-                (put & entity(as[UpdateHabitRequest])) { req =>
-                  onSuccess(service.updateHabit(id, req).unsafeToFuture()) {
-                    case Right(habit) => complete(StatusCodes.OK, habit)
-                    case Left(err)    => ErrorHandler.toRoute(err)
-                  }
-                },
-                delete {
-                  onSuccess(service.deleteHabit(id).unsafeToFuture()) {
-                    case Right(_)  => complete(StatusCodes.NoContent)
-                    case Left(err) => ErrorHandler.toRoute(err)
-                  }
-                }
-              )
-            },
-            // Catch non-UUID path segments and return 400 (per API contract)
-            path(Segment) { _ =>
-              complete(
-                StatusCodes.BadRequest,
-                ErrorResponse("Invalid habit id: must be a valid UUID")
-              )
-            }
-          )
-        }
+  private object UUIDVar {
+    def unapply(str: String): Option[UUID] =
+      scala.util.Try(UUID.fromString(str)).toOption
+  }
+
+  val routes: HttpRoutes[IO] = HttpRoutes.of[IO] {
+
+    case GET -> Root / "habits" =>
+      service.listHabits().flatMap {
+        case Right(list) => Ok(list)
+        case Left(err)   => ErrorHandler.toResponse(err)
       }
-    }
+
+    case GET -> Root / "habits" / UUIDVar(id) =>
+      service.getHabit(id).flatMap {
+        case Right(habit) => Ok(habit)
+        case Left(err)    => ErrorHandler.toResponse(err)
+      }
+
+    case GET -> Root / "habits" / _ =>
+      BadRequest(ErrorResponse("Invalid habit id: must be a valid UUID"))
+
+    case req @ POST -> Root / "habits" =>
+      req.as[CreateHabitRequest].flatMap { body =>
+        service.createHabit(body).flatMap {
+          case Right(habit) => Created(habit)
+          case Left(err)    => ErrorHandler.toResponse(err)
+        }
+      }.handleErrorWith { case _: DecodeFailure =>
+        BadRequest(ErrorResponse("Malformed request body"))
+      }
+
+    case req @ PUT -> Root / "habits" / UUIDVar(id) =>
+      req.as[UpdateHabitRequest].flatMap { body =>
+        service.updateHabit(id, body).flatMap {
+          case Right(habit) => Ok(habit)
+          case Left(err)    => ErrorHandler.toResponse(err)
+        }
+      }.handleErrorWith { case _: DecodeFailure =>
+        BadRequest(ErrorResponse("Malformed request body"))
+      }
+
+    case PUT -> Root / "habits" / _ =>
+      BadRequest(ErrorResponse("Invalid habit id: must be a valid UUID"))
+
+    case DELETE -> Root / "habits" / UUIDVar(id) =>
+      service.deleteHabit(id).flatMap {
+        case Right(_)  => NoContent()
+        case Left(err) => ErrorHandler.toResponse(err)
+      }
+
+    case DELETE -> Root / "habits" / _ =>
+      BadRequest(ErrorResponse("Invalid habit id: must be a valid UUID"))
+  }
 }
