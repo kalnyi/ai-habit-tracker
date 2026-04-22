@@ -55,17 +55,20 @@ class HabitCompletionRoutesSpec extends AsyncWordSpec with AsyncIOSpec with Matc
         IO.pure(Right(()))
   ) extends HabitCompletionService {
     override def recordCompletion(
+        userId: Long,
         hId: UUID,
         req: CreateHabitCompletionRequest
     ): IO[Either[AppError, HabitCompletionResponse]] = recordResult
 
     override def listCompletions(
+        userId: Long,
         hId: UUID,
         from: Option[LocalDate],
         to: Option[LocalDate]
     ): IO[Either[AppError, List[HabitCompletionResponse]]] = listResult
 
     override def deleteCompletion(
+        userId: Long,
         hId: UUID,
         cId: UUID
     ): IO[Either[AppError, Unit]] = deleteResult
@@ -75,15 +78,15 @@ class HabitCompletionRoutesSpec extends AsyncWordSpec with AsyncIOSpec with Matc
     new HabitCompletionRoutes(service).routes.orNotFound
 
   // ---------------------------------------------------------------------------
-  // POST /habits/{habitId}/completions
+  // POST /users/1/habits/{habitId}/completions
   // ---------------------------------------------------------------------------
 
-  "POST /habits/{habitId}/completions" should {
+  "POST /users/1/habits/{habitId}/completions" should {
 
     "return 201 and correct JSON body on happy path" in {
       val service = new FakeHabitCompletionService()
       val body    = CreateHabitCompletionRequest(today, Some("Felt energised"))
-      val req     = Request[IO](Method.POST, Uri.unsafeFromString(s"/habits/$habitId/completions"))
+      val req     = Request[IO](Method.POST, Uri.unsafeFromString(s"/users/1/habits/$habitId/completions"))
         .withEntity(body)
       appWith(service).run(req).flatMap { resp =>
         resp.bodyText.compile.string.map { b =>
@@ -101,7 +104,7 @@ class HabitCompletionRoutesSpec extends AsyncWordSpec with AsyncIOSpec with Matc
     "return 400 when habitId is not a valid UUID" in {
       val service = new FakeHabitCompletionService()
       val body    = CreateHabitCompletionRequest(today, None)
-      val req     = Request[IO](Method.POST, uri"/habits/not-a-uuid/completions").withEntity(body)
+      val req     = Request[IO](Method.POST, uri"/users/1/habits/not-a-uuid/completions").withEntity(body)
       appWith(service).run(req).asserting { resp =>
         resp.status shouldBe Status.BadRequest
       }
@@ -109,7 +112,7 @@ class HabitCompletionRoutesSpec extends AsyncWordSpec with AsyncIOSpec with Matc
 
     "return 400 on malformed JSON body" in {
       val service = new FakeHabitCompletionService()
-      val req = Request[IO](Method.POST, Uri.unsafeFromString(s"/habits/$habitId/completions"))
+      val req = Request[IO](Method.POST, Uri.unsafeFromString(s"/users/1/habits/$habitId/completions"))
         .withEntity("{not-valid-json")
         .withContentType(headers.`Content-Type`(MediaType.application.json))
       appWith(service).run(req).asserting { resp =>
@@ -119,7 +122,7 @@ class HabitCompletionRoutesSpec extends AsyncWordSpec with AsyncIOSpec with Matc
 
     "return 400 when completedOn is unparseable in JSON body" in {
       val service = new FakeHabitCompletionService()
-      val req = Request[IO](Method.POST, Uri.unsafeFromString(s"/habits/$habitId/completions"))
+      val req = Request[IO](Method.POST, Uri.unsafeFromString(s"/users/1/habits/$habitId/completions"))
         .withEntity("""{"completedOn":"not-a-date"}""")
         .withContentType(headers.`Content-Type`(MediaType.application.json))
       appWith(service).run(req).asserting { resp =>
@@ -132,7 +135,7 @@ class HabitCompletionRoutesSpec extends AsyncWordSpec with AsyncIOSpec with Matc
         recordResult = IO.pure(Left(NotFound(s"Habit '$habitId' not found")))
       )
       val body = CreateHabitCompletionRequest(today, None)
-      val req  = Request[IO](Method.POST, Uri.unsafeFromString(s"/habits/$habitId/completions"))
+      val req  = Request[IO](Method.POST, Uri.unsafeFromString(s"/users/1/habits/$habitId/completions"))
         .withEntity(body)
       appWith(service).run(req).asserting { resp =>
         resp.status shouldBe Status.NotFound
@@ -144,7 +147,7 @@ class HabitCompletionRoutesSpec extends AsyncWordSpec with AsyncIOSpec with Matc
         recordResult = IO.pure(Left(ConflictError(s"Already completed for $today")))
       )
       val body = CreateHabitCompletionRequest(today, None)
-      val req  = Request[IO](Method.POST, Uri.unsafeFromString(s"/habits/$habitId/completions"))
+      val req  = Request[IO](Method.POST, Uri.unsafeFromString(s"/users/1/habits/$habitId/completions"))
         .withEntity(body)
       appWith(service).run(req).asserting { resp =>
         resp.status shouldBe Status.Conflict
@@ -153,14 +156,14 @@ class HabitCompletionRoutesSpec extends AsyncWordSpec with AsyncIOSpec with Matc
   }
 
   // ---------------------------------------------------------------------------
-  // GET /habits/{habitId}/completions
+  // GET /users/1/habits/{habitId}/completions
   // ---------------------------------------------------------------------------
 
-  "GET /habits/{habitId}/completions" should {
+  "GET /users/1/habits/{habitId}/completions" should {
 
     "return 200 with an array on happy path" in {
       val service = new FakeHabitCompletionService()
-      val req     = Request[IO](Method.GET, Uri.unsafeFromString(s"/habits/$habitId/completions"))
+      val req     = Request[IO](Method.GET, Uri.unsafeFromString(s"/users/1/habits/$habitId/completions"))
       appWith(service).run(req).flatMap { resp =>
         resp.bodyText.compile.string.map { body =>
           resp.status shouldBe Status.Ok
@@ -173,7 +176,7 @@ class HabitCompletionRoutesSpec extends AsyncWordSpec with AsyncIOSpec with Matc
 
     "return 200 with empty array when service returns empty list" in {
       val service = new FakeHabitCompletionService(listResult = IO.pure(Right(List.empty)))
-      val req     = Request[IO](Method.GET, Uri.unsafeFromString(s"/habits/$habitId/completions"))
+      val req     = Request[IO](Method.GET, Uri.unsafeFromString(s"/users/1/habits/$habitId/completions"))
       appWith(service).run(req).flatMap { resp =>
         resp.bodyText.compile.string.map { body =>
           resp.status shouldBe Status.Ok
@@ -185,7 +188,7 @@ class HabitCompletionRoutesSpec extends AsyncWordSpec with AsyncIOSpec with Matc
     "return 400 on unparseable from query param" in {
       val service = new FakeHabitCompletionService()
       val req     = Request[IO](Method.GET,
-        Uri.unsafeFromString(s"/habits/$habitId/completions?from=not-a-date"))
+        Uri.unsafeFromString(s"/users/1/habits/$habitId/completions?from=not-a-date"))
       appWith(service).run(req).asserting { resp =>
         resp.status shouldBe Status.BadRequest
       }
@@ -194,7 +197,7 @@ class HabitCompletionRoutesSpec extends AsyncWordSpec with AsyncIOSpec with Matc
     "return 400 on unparseable to query param" in {
       val service = new FakeHabitCompletionService()
       val req     = Request[IO](Method.GET,
-        Uri.unsafeFromString(s"/habits/$habitId/completions?to=not-a-date"))
+        Uri.unsafeFromString(s"/users/1/habits/$habitId/completions?to=not-a-date"))
       appWith(service).run(req).asserting { resp =>
         resp.status shouldBe Status.BadRequest
       }
@@ -202,7 +205,7 @@ class HabitCompletionRoutesSpec extends AsyncWordSpec with AsyncIOSpec with Matc
 
     "return 400 when habitId is not a valid UUID" in {
       val service = new FakeHabitCompletionService()
-      val req     = Request[IO](Method.GET, uri"/habits/not-a-uuid/completions")
+      val req     = Request[IO](Method.GET, uri"/users/1/habits/not-a-uuid/completions")
       appWith(service).run(req).asserting { resp =>
         resp.status shouldBe Status.BadRequest
       }
@@ -212,7 +215,7 @@ class HabitCompletionRoutesSpec extends AsyncWordSpec with AsyncIOSpec with Matc
       val service = new FakeHabitCompletionService(
         listResult = IO.pure(Left(NotFound(s"Habit '$habitId' not found")))
       )
-      val req = Request[IO](Method.GET, Uri.unsafeFromString(s"/habits/$habitId/completions"))
+      val req = Request[IO](Method.GET, Uri.unsafeFromString(s"/users/1/habits/$habitId/completions"))
       appWith(service).run(req).asserting { resp =>
         resp.status shouldBe Status.NotFound
       }
@@ -220,15 +223,15 @@ class HabitCompletionRoutesSpec extends AsyncWordSpec with AsyncIOSpec with Matc
   }
 
   // ---------------------------------------------------------------------------
-  // DELETE /habits/{habitId}/completions/{completionId}
+  // DELETE /users/1/habits/{habitId}/completions/{completionId}
   // ---------------------------------------------------------------------------
 
-  "DELETE /habits/{habitId}/completions/{completionId}" should {
+  "DELETE /users/1/habits/{habitId}/completions/{completionId}" should {
 
     "return 204 on success" in {
       val service = new FakeHabitCompletionService()
       val req     = Request[IO](Method.DELETE,
-        Uri.unsafeFromString(s"/habits/$habitId/completions/$completionId"))
+        Uri.unsafeFromString(s"/users/1/habits/$habitId/completions/$completionId"))
       appWith(service).run(req).asserting { resp =>
         resp.status shouldBe Status.NoContent
       }
@@ -237,7 +240,7 @@ class HabitCompletionRoutesSpec extends AsyncWordSpec with AsyncIOSpec with Matc
     "return 400 when habitId is not a valid UUID" in {
       val service = new FakeHabitCompletionService()
       val req     = Request[IO](Method.DELETE,
-        Uri.unsafeFromString(s"/habits/not-a-uuid/completions/$completionId"))
+        Uri.unsafeFromString(s"/users/1/habits/not-a-uuid/completions/$completionId"))
       appWith(service).run(req).asserting { resp =>
         resp.status shouldBe Status.BadRequest
       }
@@ -246,7 +249,7 @@ class HabitCompletionRoutesSpec extends AsyncWordSpec with AsyncIOSpec with Matc
     "return 400 when completionId is not a valid UUID" in {
       val service = new FakeHabitCompletionService()
       val req     = Request[IO](Method.DELETE,
-        Uri.unsafeFromString(s"/habits/$habitId/completions/not-a-uuid"))
+        Uri.unsafeFromString(s"/users/1/habits/$habitId/completions/not-a-uuid"))
       appWith(service).run(req).asserting { resp =>
         resp.status shouldBe Status.BadRequest
       }
@@ -257,7 +260,7 @@ class HabitCompletionRoutesSpec extends AsyncWordSpec with AsyncIOSpec with Matc
         deleteResult = IO.pure(Left(NotFound(s"Completion '$completionId' not found")))
       )
       val req = Request[IO](Method.DELETE,
-        Uri.unsafeFromString(s"/habits/$habitId/completions/$completionId"))
+        Uri.unsafeFromString(s"/users/1/habits/$habitId/completions/$completionId"))
       appWith(service).run(req).asserting { resp =>
         resp.status shouldBe Status.NotFound
       }

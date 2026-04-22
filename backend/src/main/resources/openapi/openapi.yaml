@@ -6,7 +6,14 @@ info:
 servers:
   - url: http://localhost:8080
 paths:
-  /habits:
+  /users/{userId}/habits:
+    parameters:
+      - name: userId
+        in: path
+        required: true
+        schema:
+          type: integer
+          format: int64
     post:
       summary: Create a habit
       operationId: createHabit
@@ -41,8 +48,96 @@ paths:
                 type: array
                 items:
                   $ref: '#/components/schemas/HabitResponse'
-  /habits/{habitId}/completions:
+  /users/{userId}/habits/{habitId}:
     parameters:
+      - name: userId
+        in: path
+        required: true
+        schema:
+          type: integer
+          format: int64
+      - name: habitId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+    get:
+      summary: Get a habit by ID
+      operationId: getHabit
+      responses:
+        '200':
+          description: Habit found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HabitResponse'
+        '400':
+          description: Invalid ID format
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: Habit not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+    put:
+      summary: Update a habit
+      operationId: updateHabit
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateHabitRequest'
+      responses:
+        '200':
+          description: Habit updated successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HabitResponse'
+        '400':
+          description: Validation error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: Habit not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+    delete:
+      summary: Delete a habit
+      operationId: deleteHabit
+      responses:
+        '204':
+          description: Habit deleted successfully
+        '400':
+          description: Invalid ID format
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: Habit not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+  /users/{userId}/habits/{habitId}/completions:
+    parameters:
+      - name: userId
+        in: path
+        required: true
+        schema:
+          type: integer
+          format: int64
       - name: habitId
         in: path
         required: true
@@ -122,8 +217,14 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
-  /habits/{habitId}/completions/{completionId}:
+  /users/{userId}/habits/{habitId}/completions/{completionId}:
     parameters:
+      - name: userId
+        in: path
+        required: true
+        schema:
+          type: integer
+          format: int64
       - name: habitId
         in: path
         required: true
@@ -150,82 +251,6 @@ paths:
                 $ref: '#/components/schemas/ErrorResponse'
         '404':
           description: Habit not found, or completion not found, or completion belongs to a different habit
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorResponse'
-  /habits/{id}:
-    parameters:
-      - name: id
-        in: path
-        required: true
-        schema:
-          type: string
-          format: uuid
-    get:
-      summary: Get a habit by ID
-      operationId: getHabit
-      responses:
-        '200':
-          description: Habit found
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/HabitResponse'
-        '400':
-          description: Invalid ID format
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorResponse'
-        '404':
-          description: Habit not found
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorResponse'
-    put:
-      summary: Update a habit
-      operationId: updateHabit
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/UpdateHabitRequest'
-      responses:
-        '200':
-          description: Habit updated successfully
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/HabitResponse'
-        '400':
-          description: Validation error
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorResponse'
-        '404':
-          description: Habit not found
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorResponse'
-    delete:
-      summary: Delete a habit
-      operationId: deleteHabit
-      responses:
-        '204':
-          description: Habit deleted successfully
-        '400':
-          description: Invalid ID format
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorResponse'
-        '404':
-          description: Habit not found
           content:
             application/json:
               schema:

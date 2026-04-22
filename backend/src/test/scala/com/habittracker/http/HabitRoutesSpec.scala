@@ -47,26 +47,26 @@ class HabitRoutesSpec extends AsyncWordSpec with AsyncIOSpec with Matchers {
       updateResult: IO[Either[AppError, HabitResponse]] = IO.pure(Right(sampleResponse)),
       deleteResult: IO[Either[AppError, Unit]] = IO.pure(Right(()))
   ) extends HabitService {
-    override def createHabit(req: CreateHabitRequest): IO[Either[AppError, HabitResponse]] = createResult
-    override def listHabits(): IO[Either[AppError, List[HabitResponse]]]                   = listResult
-    override def getHabit(id: UUID): IO[Either[AppError, HabitResponse]]                   = getResult
-    override def updateHabit(id: UUID, req: UpdateHabitRequest): IO[Either[AppError, HabitResponse]] = updateResult
-    override def deleteHabit(id: UUID): IO[Either[AppError, Unit]]                         = deleteResult
+    override def createHabit(userId: Long, req: CreateHabitRequest): IO[Either[AppError, HabitResponse]] = createResult
+    override def listHabits(userId: Long): IO[Either[AppError, List[HabitResponse]]]                     = listResult
+    override def getHabit(userId: Long, id: UUID): IO[Either[AppError, HabitResponse]]                   = getResult
+    override def updateHabit(userId: Long, id: UUID, req: UpdateHabitRequest): IO[Either[AppError, HabitResponse]] = updateResult
+    override def deleteHabit(userId: Long, id: UUID): IO[Either[AppError, Unit]]                         = deleteResult
   }
 
   private def appWith(service: HabitService): HttpApp[IO] =
     new HabitRoutes(service).routes.orNotFound
 
   // ---------------------------------------------------------------------------
-  // POST /habits
+  // POST /users/1/habits
   // ---------------------------------------------------------------------------
 
-  "POST /habits" should {
+  "POST /users/1/habits" should {
 
     "return 201 and the created habit on valid input" in {
       val service = new FakeHabitService()
       val body    = CreateHabitRequest("Read 20 pages", Some("Non-fiction"), "daily")
-      val req     = Request[IO](Method.POST, uri"/habits").withEntity(body)
+      val req     = Request[IO](Method.POST, uri"/users/1/habits").withEntity(body)
       appWith(service).run(req).flatMap { resp =>
         resp.bodyText.compile.string.map { body =>
           resp.status shouldBe Status.Created
@@ -82,7 +82,7 @@ class HabitRoutesSpec extends AsyncWordSpec with AsyncIOSpec with Matchers {
         createResult = IO.pure(Left(ValidationError("name must not be blank")))
       )
       val body = CreateHabitRequest("", None, "daily")
-      val req  = Request[IO](Method.POST, uri"/habits").withEntity(body)
+      val req  = Request[IO](Method.POST, uri"/users/1/habits").withEntity(body)
       appWith(service).run(req).asserting { resp =>
         resp.status shouldBe Status.BadRequest
       }
@@ -90,7 +90,7 @@ class HabitRoutesSpec extends AsyncWordSpec with AsyncIOSpec with Matchers {
 
     "return 400 when JSON body is malformed" in {
       val service = new FakeHabitService()
-      val req = Request[IO](Method.POST, uri"/habits")
+      val req = Request[IO](Method.POST, uri"/users/1/habits")
         .withEntity("{not-valid-json")
         .withContentType(headers.`Content-Type`(MediaType.application.json))
       appWith(service).run(req).asserting { resp =>
@@ -100,14 +100,14 @@ class HabitRoutesSpec extends AsyncWordSpec with AsyncIOSpec with Matchers {
   }
 
   // ---------------------------------------------------------------------------
-  // GET /habits
+  // GET /users/1/habits
   // ---------------------------------------------------------------------------
 
-  "GET /habits" should {
+  "GET /users/1/habits" should {
 
     "return 200 and an array of habits" in {
       val service = new FakeHabitService()
-      val req     = Request[IO](Method.GET, uri"/habits")
+      val req     = Request[IO](Method.GET, uri"/users/1/habits")
       appWith(service).run(req).flatMap { resp =>
         resp.bodyText.compile.string.map { body =>
           resp.status shouldBe Status.Ok
@@ -120,7 +120,7 @@ class HabitRoutesSpec extends AsyncWordSpec with AsyncIOSpec with Matchers {
 
     "return 200 and an empty array when no habits exist" in {
       val service = new FakeHabitService(listResult = IO.pure(Right(List.empty)))
-      val req     = Request[IO](Method.GET, uri"/habits")
+      val req     = Request[IO](Method.GET, uri"/users/1/habits")
       appWith(service).run(req).flatMap { resp =>
         resp.bodyText.compile.string.map { body =>
           resp.status shouldBe Status.Ok
@@ -131,14 +131,14 @@ class HabitRoutesSpec extends AsyncWordSpec with AsyncIOSpec with Matchers {
   }
 
   // ---------------------------------------------------------------------------
-  // GET /habits/{id}
+  // GET /users/1/habits/{id}
   // ---------------------------------------------------------------------------
 
-  "GET /habits/{id}" should {
+  "GET /users/1/habits/{id}" should {
 
     "return 200 and the habit when found" in {
       val service = new FakeHabitService()
-      val req     = Request[IO](Method.GET, Uri.unsafeFromString(s"/habits/$fixedId"))
+      val req     = Request[IO](Method.GET, Uri.unsafeFromString(s"/users/1/habits/$fixedId"))
       appWith(service).run(req).flatMap { resp =>
         resp.bodyText.compile.string.map { body =>
           resp.status shouldBe Status.Ok
@@ -149,7 +149,7 @@ class HabitRoutesSpec extends AsyncWordSpec with AsyncIOSpec with Matchers {
 
     "return 404 when habit is not found" in {
       val service = new FakeHabitService(getResult = IO.pure(Left(NotFound("Habit not found"))))
-      val req     = Request[IO](Method.GET, Uri.unsafeFromString(s"/habits/${UUID.randomUUID()}"))
+      val req     = Request[IO](Method.GET, Uri.unsafeFromString(s"/users/1/habits/${UUID.randomUUID()}"))
       appWith(service).run(req).asserting { resp =>
         resp.status shouldBe Status.NotFound
       }
@@ -157,7 +157,7 @@ class HabitRoutesSpec extends AsyncWordSpec with AsyncIOSpec with Matchers {
 
     "return 400 when id is not a valid UUID" in {
       val service = new FakeHabitService()
-      val req     = Request[IO](Method.GET, uri"/habits/not-a-uuid")
+      val req     = Request[IO](Method.GET, uri"/users/1/habits/not-a-uuid")
       appWith(service).run(req).asserting { resp =>
         resp.status shouldBe Status.BadRequest
       }
@@ -165,15 +165,15 @@ class HabitRoutesSpec extends AsyncWordSpec with AsyncIOSpec with Matchers {
   }
 
   // ---------------------------------------------------------------------------
-  // PUT /habits/{id}
+  // PUT /users/1/habits/{id}
   // ---------------------------------------------------------------------------
 
-  "PUT /habits/{id}" should {
+  "PUT /users/1/habits/{id}" should {
 
     "return 200 and the updated habit on success" in {
       val service = new FakeHabitService()
       val body    = UpdateHabitRequest("Updated", None, "weekly")
-      val req     = Request[IO](Method.PUT, Uri.unsafeFromString(s"/habits/$fixedId")).withEntity(body)
+      val req     = Request[IO](Method.PUT, Uri.unsafeFromString(s"/users/1/habits/$fixedId")).withEntity(body)
       appWith(service).run(req).flatMap { resp =>
         resp.bodyText.compile.string.map { body =>
           resp.status shouldBe Status.Ok
@@ -185,7 +185,7 @@ class HabitRoutesSpec extends AsyncWordSpec with AsyncIOSpec with Matchers {
     "return 404 when habit is not found" in {
       val service = new FakeHabitService(updateResult = IO.pure(Left(NotFound("Habit not found"))))
       val body    = UpdateHabitRequest("Updated", None, "weekly")
-      val req     = Request[IO](Method.PUT, Uri.unsafeFromString(s"/habits/${UUID.randomUUID()}")).withEntity(body)
+      val req     = Request[IO](Method.PUT, Uri.unsafeFromString(s"/users/1/habits/${UUID.randomUUID()}")).withEntity(body)
       appWith(service).run(req).asserting { resp =>
         resp.status shouldBe Status.NotFound
       }
@@ -193,14 +193,14 @@ class HabitRoutesSpec extends AsyncWordSpec with AsyncIOSpec with Matchers {
   }
 
   // ---------------------------------------------------------------------------
-  // DELETE /habits/{id}
+  // DELETE /users/1/habits/{id}
   // ---------------------------------------------------------------------------
 
-  "DELETE /habits/{id}" should {
+  "DELETE /users/1/habits/{id}" should {
 
     "return 204 on successful soft-delete" in {
       val service = new FakeHabitService()
-      val req     = Request[IO](Method.DELETE, Uri.unsafeFromString(s"/habits/$fixedId"))
+      val req     = Request[IO](Method.DELETE, Uri.unsafeFromString(s"/users/1/habits/$fixedId"))
       appWith(service).run(req).asserting { resp =>
         resp.status shouldBe Status.NoContent
       }
@@ -208,7 +208,7 @@ class HabitRoutesSpec extends AsyncWordSpec with AsyncIOSpec with Matchers {
 
     "return 404 when habit is not found" in {
       val service = new FakeHabitService(deleteResult = IO.pure(Left(NotFound("Habit not found"))))
-      val req     = Request[IO](Method.DELETE, Uri.unsafeFromString(s"/habits/${UUID.randomUUID()}"))
+      val req     = Request[IO](Method.DELETE, Uri.unsafeFromString(s"/users/1/habits/${UUID.randomUUID()}"))
       appWith(service).run(req).asserting { resp =>
         resp.status shouldBe Status.NotFound
       }
@@ -216,7 +216,7 @@ class HabitRoutesSpec extends AsyncWordSpec with AsyncIOSpec with Matchers {
 
     "return 400 when id is not a valid UUID" in {
       val service = new FakeHabitService()
-      val req     = Request[IO](Method.DELETE, uri"/habits/not-a-uuid")
+      val req     = Request[IO](Method.DELETE, uri"/users/1/habits/not-a-uuid")
       appWith(service).run(req).asserting { resp =>
         resp.status shouldBe Status.BadRequest
       }

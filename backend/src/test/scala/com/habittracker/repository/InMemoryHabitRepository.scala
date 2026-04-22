@@ -18,13 +18,14 @@ class InMemoryHabitRepository extends HabitRepository {
   override def create(habit: Habit): IO[Unit] =
     IO { store.put(habit.id, habit); () }
 
-  override def listActive(): IO[List[Habit]] =
-    IO { store.values.filter(_.deletedAt.isEmpty).toList }
+  override def listActive(userId: Long): IO[List[Habit]] =
+    IO { store.values.filter(h => h.userId == userId && h.deletedAt.isEmpty).toList }
 
-  override def findActiveById(id: UUID): IO[Option[Habit]] =
-    IO { store.get(id).filter(_.deletedAt.isEmpty) }
+  override def findActiveById(userId: Long, id: UUID): IO[Option[Habit]] =
+    IO { store.get(id).filter(h => h.userId == userId && h.deletedAt.isEmpty) }
 
   override def updateActive(
+      userId: Long,
       id: UUID,
       name: String,
       description: Option[String],
@@ -32,7 +33,7 @@ class InMemoryHabitRepository extends HabitRepository {
       updatedAt: Instant
   ): IO[Option[Habit]] =
     IO {
-      store.get(id).filter(_.deletedAt.isEmpty).map { existing =>
+      store.get(id).filter(h => h.userId == userId && h.deletedAt.isEmpty).map { existing =>
         val updated = existing.copy(
           name = name,
           description = description,
@@ -44,9 +45,9 @@ class InMemoryHabitRepository extends HabitRepository {
       }
     }
 
-  override def softDelete(id: UUID, at: Instant): IO[Boolean] =
+  override def softDelete(userId: Long, id: UUID, at: Instant): IO[Boolean] =
     IO {
-      store.get(id).filter(_.deletedAt.isEmpty) match {
+      store.get(id).filter(h => h.userId == userId && h.deletedAt.isEmpty) match {
         case Some(h) =>
           store.put(id, h.copy(deletedAt = Some(at), updatedAt = at))
           true

@@ -101,7 +101,7 @@ class DoobieHabitCompletionRepositorySpec
 
   private def makeHabit(name: String = "Test habit"): Habit = {
     val now = Instant.now()
-    Habit(UUID.randomUUID(), name, None, Frequency.Daily, now, now, None)
+    Habit(UUID.randomUUID(), 1L, name, None, Frequency.Daily, now, now, None)
   }
 
   private def makeCompletion(

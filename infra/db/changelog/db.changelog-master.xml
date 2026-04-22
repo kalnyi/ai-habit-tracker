@@ -7,5 +7,7 @@
 
     <include file="changesets/001-create-habits-table.sql" relativeToChangelogFile="true"/>
     <include file="changesets/002-create-habit-completions-table.sql" relativeToChangelogFile="true"/>
+    <include file="changesets/003-create-users-table.sql" relativeToChangelogFile="true"/>
+    <include file="changesets/004-add-user-id-to-habits.sql" relativeToChangelogFile="true"/>
 
 </databaseChangeLog>

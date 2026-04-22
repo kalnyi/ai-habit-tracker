@@ -167,14 +167,14 @@ class HabitApiIntegrationSpec
     )
 
   // ---------------------------------------------------------------------------
-  // POST /habits
+  // POST /users/1/habits
   // ---------------------------------------------------------------------------
 
-  "POST /habits" should {
+  "POST /users/1/habits" should {
 
     "return 201 with all expected fields on valid input" in {
       val body = CreateHabitRequest("Read 20 pages", Some("Non-fiction"), "daily").asJson.noSpaces
-      val resp = sendPost("/habits", body)
+      val resp = sendPost("/users/1/habits", body)
 
       resp.statusCode() shouldBe 201
       val habit = decode[HabitResponse](resp.body()).toOption.get
@@ -187,7 +187,7 @@ class HabitApiIntegrationSpec
 
     "return 400 with a message field when name is missing" in {
       val body = """{"description":"test","frequency":"daily"}"""
-      val resp = sendPost("/habits", body)
+      val resp = sendPost("/users/1/habits", body)
 
       resp.statusCode() shouldBe 400
       val err = decode[ErrorResponse](resp.body()).toOption.get
@@ -196,7 +196,7 @@ class HabitApiIntegrationSpec
 
     "return 400 when frequency is 'monthly'" in {
       val body = CreateHabitRequest("Run", None, "monthly").asJson.noSpaces
-      val resp = sendPost("/habits", body)
+      val resp = sendPost("/users/1/habits", body)
 
       resp.statusCode() shouldBe 400
       val err = decode[ErrorResponse](resp.body()).toOption.get
@@ -205,20 +205,20 @@ class HabitApiIntegrationSpec
   }
 
   // ---------------------------------------------------------------------------
-  // GET /habits
+  // GET /users/1/habits
   // ---------------------------------------------------------------------------
 
-  "GET /habits" should {
+  "GET /users/1/habits" should {
 
     "return exactly the two active habits when one is soft-deleted (PBI-003)" in {
-      sendPost("/habits", CreateHabitRequest("Active 1", None, "daily").asJson.noSpaces)
-      sendPost("/habits", CreateHabitRequest("Active 2", None, "weekly").asJson.noSpaces)
-      val r3 = sendPost("/habits", CreateHabitRequest("To delete", None, "daily").asJson.noSpaces)
+      sendPost("/users/1/habits", CreateHabitRequest("Active 1", None, "daily").asJson.noSpaces)
+      sendPost("/users/1/habits", CreateHabitRequest("Active 2", None, "weekly").asJson.noSpaces)
+      val r3 = sendPost("/users/1/habits", CreateHabitRequest("To delete", None, "daily").asJson.noSpaces)
 
       val idToDelete = decode[HabitResponse](r3.body()).toOption.get.id
-      sendDelete(s"/habits/$idToDelete")
+      sendDelete(s"/users/1/habits/$idToDelete")
 
-      val listResp = sendGet("/habits")
+      val listResp = sendGet("/users/1/habits")
       listResp.statusCode() shouldBe 200
       val habits = decode[List[HabitResponse]](listResp.body()).toOption.get
       habits.length shouldBe 2
@@ -229,18 +229,18 @@ class HabitApiIntegrationSpec
   }
 
   // ---------------------------------------------------------------------------
-  // GET /habits/{id}
+  // GET /users/1/habits/{id}
   // ---------------------------------------------------------------------------
 
-  "GET /habits/{id}" should {
+  "GET /users/1/habits/{id}" should {
 
     "return 200 with correct field values for an existing active habit (PBI-004)" in {
       val created =
         decode[HabitResponse](
-          sendPost("/habits", CreateHabitRequest("Read", Some("Daily reading"), "daily").asJson.noSpaces).body()
+          sendPost("/users/1/habits", CreateHabitRequest("Read", Some("Daily reading"), "daily").asJson.noSpaces).body()
         ).toOption.get
 
-      val resp = sendGet(s"/habits/${created.id}")
+      val resp = sendGet(s"/users/1/habits/${created.id}")
       resp.statusCode() shouldBe 200
       val fetched = decode[HabitResponse](resp.body()).toOption.get
       fetched.id shouldBe created.id
@@ -249,29 +249,29 @@ class HabitApiIntegrationSpec
     }
 
     "return 404 for a random UUID that doesn't exist" in {
-      sendGet(s"/habits/${UUID.randomUUID()}").statusCode() shouldBe 404
+      sendGet(s"/users/1/habits/${UUID.randomUUID()}").statusCode() shouldBe 404
     }
 
     "return 400 when id is not a valid UUID" in {
-      sendGet("/habits/not-a-uuid").statusCode() shouldBe 400
+      sendGet("/users/1/habits/not-a-uuid").statusCode() shouldBe 400
     }
   }
 
   // ---------------------------------------------------------------------------
-  // PUT /habits/{id}
+  // PUT /users/1/habits/{id}
   // ---------------------------------------------------------------------------
 
-  "PUT /habits/{id}" should {
+  "PUT /users/1/habits/{id}" should {
 
     "return 200 with updated name and a strictly later updatedAt (PBI-005)" in {
       val created =
         decode[HabitResponse](
-          sendPost("/habits", CreateHabitRequest("Old name", None, "daily").asJson.noSpaces).body()
+          sendPost("/users/1/habits", CreateHabitRequest("Old name", None, "daily").asJson.noSpaces).body()
         ).toOption.get
 
       Thread.sleep(50)
 
-      val updateResp = sendPut(s"/habits/${created.id}",
+      val updateResp = sendPut(s"/users/1/habits/${created.id}",
         UpdateHabitRequest("New name", None, "weekly").asJson.noSpaces)
 
       updateResp.statusCode() shouldBe 200
@@ -282,26 +282,26 @@ class HabitApiIntegrationSpec
     }
 
     "return 404 for a random UUID that doesn't exist" in {
-      val resp = sendPut(s"/habits/${UUID.randomUUID()}",
+      val resp = sendPut(s"/users/1/habits/${UUID.randomUUID()}",
         UpdateHabitRequest("Name", None, "daily").asJson.noSpaces)
       resp.statusCode() shouldBe 404
     }
   }
 
   // ---------------------------------------------------------------------------
-  // DELETE /habits/{id}
+  // DELETE /users/1/habits/{id}
   // ---------------------------------------------------------------------------
 
-  "DELETE /habits/{id}" should {
+  "DELETE /users/1/habits/{id}" should {
 
     "return 204; GET then returns 404; row still in DB with non-null deleted_at (PBI-006)" in {
       val created =
         decode[HabitResponse](
-          sendPost("/habits", CreateHabitRequest("To delete", None, "daily").asJson.noSpaces).body()
+          sendPost("/users/1/habits", CreateHabitRequest("To delete", None, "daily").asJson.noSpaces).body()
         ).toOption.get
 
-      sendDelete(s"/habits/${created.id}").statusCode() shouldBe 204
-      sendGet(s"/habits/${created.id}").statusCode() shouldBe 404
+      sendDelete(s"/users/1/habits/${created.id}").statusCode() shouldBe 204
+      sendGet(s"/users/1/habits/${created.id}").statusCode() shouldBe 404
 
       val count =
         sql"SELECT COUNT(*) FROM habits WHERE id = ${created.id}"
@@ -313,11 +313,11 @@ class HabitApiIntegrationSpec
           .query[Option[Instant]].option.transact(transactor).unsafeRunSync()
       deletedAt.flatten should not be empty
 
-      sendDelete(s"/habits/${created.id}").statusCode() shouldBe 404
+      sendDelete(s"/users/1/habits/${created.id}").statusCode() shouldBe 404
     }
 
     "return 404 when deleting a non-existent ID" in {
-      sendDelete(s"/habits/${UUID.randomUUID()}").statusCode() shouldBe 404
+      sendDelete(s"/users/1/habits/${UUID.randomUUID()}").statusCode() shouldBe 404
     }
   }
 
@@ -331,6 +331,48 @@ class HabitApiIntegrationSpec
       val resp = sendGet("/docs/openapi.json")
       resp.statusCode() shouldBe 200
       resp.headers().firstValue("Content-Type").orElse("") should include("application/json")
+    }
+  }
+
+  // ---------------------------------------------------------------------------
+  // AC-3: default user seed verification
+  // ---------------------------------------------------------------------------
+
+  "Liquibase bootstrap" should {
+
+    "seed exactly one row (id=1, name='default') in the users table (AC-3)" in {
+      val count =
+        sql"SELECT COUNT(*) FROM users WHERE id = 1 AND name = 'default'"
+          .query[Long].unique.transact(transactor).unsafeRunSync()
+      count shouldBe 1L
+    }
+  }
+
+  // ---------------------------------------------------------------------------
+  // AC-5 / AC-6: cross-user isolation
+  // ---------------------------------------------------------------------------
+
+  "Cross-user isolation" should {
+
+    "GET /users/2/habits/{id} returns 404 for a habit created under user 1" in {
+      val created =
+        decode[HabitResponse](
+          sendPost("/users/1/habits", CreateHabitRequest("User1 habit", None, "daily").asJson.noSpaces).body()
+        ).toOption.get
+
+      // user 2 cannot see user 1's habit
+      sendGet(s"/users/2/habits/${created.id}").statusCode() shouldBe 404
+    }
+
+    "GET /users/1/habits does not include a habit created under user 2" in {
+      sendPost("/users/1/habits", CreateHabitRequest("User1 habit", None, "daily").asJson.noSpaces)
+      sendPost("/users/2/habits", CreateHabitRequest("User2 habit", None, "daily").asJson.noSpaces)
+
+      val listResp = sendGet("/users/1/habits")
+      listResp.statusCode() shouldBe 200
+      val habits = decode[List[HabitResponse]](listResp.body()).toOption.get
+      habits.map(_.name) should contain("User1 habit")
+      habits.map(_.name) should not contain "User2 habit"
     }
   }
 }
