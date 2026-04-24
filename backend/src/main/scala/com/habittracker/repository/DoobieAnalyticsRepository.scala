@@ -23,7 +23,7 @@ final class DoobieAnalyticsRepository(transactor: Transactor[IO])
           WHERE habit_id = $habitId AND completed_on = CURRENT_DATE
         )
         UNION ALL
-        SELECT streak.day - INTERVAL '1 day'
+        SELECT (streak.day - INTERVAL '1 day')::date
         FROM streak
         WHERE EXISTS (
           SELECT 1 FROM habit_completions
@@ -46,7 +46,7 @@ final class DoobieAnalyticsRepository(transactor: Transactor[IO])
         SELECT GREATEST(
           1,
           CEIL(
-            EXTRACT(EPOCH FROM (CURRENT_DATE - MIN(completed_on))) / 604800.0
+            (CURRENT_DATE - MIN(completed_on)) / 7.0
           )::int
         ) AS total_weeks
         FROM user_completions

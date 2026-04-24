@@ -19,7 +19,7 @@ import java.time.{Instant, LocalDate}
 import java.util.UUID
 
 // requires Docker - run manually
-@Ignore
+//@Ignore
 @RunWith(classOf[JUnitRunner])
 class DoobieAnalyticsRepositorySpec
     extends AnyWordSpec
@@ -62,7 +62,7 @@ class DoobieAnalyticsRepositorySpec
       val database = DatabaseFactory.getInstance()
         .findCorrectDatabaseImplementation(new JdbcConnection(jdbcConn))
       val accessor = new DirectoryResourceAccessor(
-        Paths.get("../../infra/db/changelog").toAbsolutePath.normalize
+        Paths.get("../infra/db/changelog").toAbsolutePath.normalize
       )
       val liquibase = new Liquibase("db.changelog-master.xml", accessor, database)
       liquibase.update("")
@@ -162,8 +162,9 @@ class DoobieAnalyticsRepositorySpec
       run(habitRepo.create(habit))
 
       // Seed two Mondays and one Tuesday, all within the last 14 days.
+      // TODO: test is incorrect when running on Wednesday. weekSpan is 3 weeks, not 2
       val today    = LocalDate.now()
-      val monday2w  = today.`with`(java.time.DayOfWeek.MONDAY).minusWeeks(2)
+      val monday2w  = today.`with`(java.time.DayOfWeek.MONDAY).minusWeeks(1)
       val tuesday2w = monday2w.plusDays(1)
       val monday1w  = monday2w.plusWeeks(1)
 

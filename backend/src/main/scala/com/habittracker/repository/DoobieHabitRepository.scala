@@ -25,6 +25,7 @@ final class DoobieHabitRepository(transactor: Transactor[IO]) extends HabitRepos
     Meta[String].timap(
       s => Frequency.parse(s).getOrElse(Frequency.Custom(s))
     )(Frequency.asString)
+    
 
   // ---------------------------------------------------------------------------
   // Explicit Read[Habit] — UUID, Long (user_id), String, Option[String],

@@ -37,8 +37,8 @@ object AppResources {
       completionSvc     = new DefaultHabitCompletionService(habitRepo, completionRepo, Clock[IO])
       analyticsService  = new DefaultAnalyticsService(habitRepo, analyticsRepo)
       allRoutes         = new DocsRoutes().routes <+>
+                          new InsightsRoutes(analyticsService).routes <+>
                           new HabitRoutes(habitService).routes <+>
-                          new HabitCompletionRoutes(completionSvc).routes <+>
-                          new InsightsRoutes(analyticsService).routes
+                          new HabitCompletionRoutes(completionSvc).routes
     } yield AppResources(allRoutes, userRepo)
 }
