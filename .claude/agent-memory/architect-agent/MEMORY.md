@@ -1,1 +1,4 @@
 - [Plan directory conventions](project_plan_directories.md) — docs/plans/ is per-PBI; docs/technical-plans/ is for multi-PBI batches, per engineer override.
+- [Package layout](project_package_layout.md) — brief-relative paths like src/main/scala/model/ map to com.habittracker.model in backend/.
+- [Testcontainers convention](project_testcontainers_convention.md) — repo/integration specs carry @Ignore; only pure unit tests run headlessly in CI.
+- [Build tool](project_build_tool.md) — Gradle (./gradlew), not sbt; phase briefs often say sbt — correct in every ADR/PLAN.
