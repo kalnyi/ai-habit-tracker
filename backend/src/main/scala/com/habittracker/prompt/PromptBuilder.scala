@@ -108,10 +108,34 @@ object PromptBuilder {
     }
 
   // ---------------------------------------------------------------------------
-  // Build
+  // Phase 4: personal-notes section
   // ---------------------------------------------------------------------------
 
-  def build(ctx: HabitContext, tips: List[RetrievedTip] = Nil): String =
+  /** Renders the user's own past notes retrieved from user_notes.
+    *
+    * Header is "YOUR PAST NOTES:" (distinct from retrievedContextSection's
+    * "Relevant habit-science tips..." preamble) so the LLM can distinguish
+    * curated corpus content from user-authored content. Returns "" when
+    * `notes` is Nil — filtered out by `build`. See ADR-011 §8. */
+  def personalNotesSection(notes: List[RetrievedTip]): String =
+    if (notes.isEmpty) ""
+    else {
+      val lines = notes.map { rn => s"- ${rn.tip.content}" }
+      "YOUR PAST NOTES:\n" + lines.mkString("\n")
+    }
+
+  // ---------------------------------------------------------------------------
+  // Build — Phase 4 widened signature
+  // ---------------------------------------------------------------------------
+
+  /** Phase 4: both `tips` and `notes` default to Nil so existing call sites
+    * (AnalysisRoutes' `PromptBuilder.build(ctx)` and any Phase 3
+    * `PromptBuilder.build(ctx, tips)` callers) continue to compile. */
+  def build(
+      ctx:   HabitContext,
+      tips:  List[RetrievedTip] = Nil,
+      notes: List[RetrievedTip] = Nil
+  ): String =
     List(
       streakSection(ctx),
       dayPatternSection(ctx),
@@ -119,6 +143,7 @@ object PromptBuilder {
       timeOfDaySection(ctx),
       correlationSection(ctx),
       momentumSection(ctx),
-      retrievedContextSection(tips)
+      retrievedContextSection(tips),
+      personalNotesSection(notes)
     ).filter(_.nonEmpty).mkString("\n\n")
 }
