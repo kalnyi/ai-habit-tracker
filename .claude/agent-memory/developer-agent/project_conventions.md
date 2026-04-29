@@ -1,13 +1,13 @@
 ---
 name: Project conventions and wiring patterns
-description: Non-obvious conventions, gotchas, and wiring patterns discovered during PBI-008-014 implementation
+description: Non-obvious conventions, gotchas, and wiring patterns discovered during PBI-008-017 implementation
 type: project
 ---
 
 ## Key wiring patterns
 
-- Routes are concatenated in `AppResources.scala` with `<+>` (SemigroupK) in the order: DocsRoutes, InsightsRoutes, AnalysisRoutes, HabitRoutes, HabitCompletionRoutes. DocsRoutes must come first.
-- Each analytics endpoint gets its own sibling route class (InsightsRoutes, AnalysisRoutes) — do NOT add new routes to an existing routes class.
+- Phase 3 route order in AppResources: DocsRoutes → InsightsRoutes → AnalysisRoutes → TipsRoutes → BatchCompletionRoutes → HabitRoutes → HabitCompletionRoutes.
+- Each analytics/feature endpoint gets its own sibling route class — do NOT add new routes to an existing routes class.
 - `AnalyticsService.buildHabitContext` uses `parTupled` for the 4 user-scoped aggregates and `parTraverse` for per-habit fan-outs. This pattern is locked by ADR-009.
 
 ## Doobie UNIQUE_VIOLATION handling
@@ -22,6 +22,22 @@ type: project
 - The Phase 2 fields (`timeOfDayPatterns`, `correlatedPairs`, `momentumScores`) have **default values** (`Map.empty`, `Nil`, `Map.empty`) to keep `InsightPromptSpec` (a HARD LIMIT) compilable when it constructs `HabitContext` with only 4 args.
 - `HabitCompletion` gains `completedAt: Option[Instant]` appended at the end — do NOT insert in the middle.
 - `habitId` keys in all Maps are `UUID` (not `Long`) — confirmed in ADR-009 §4.
+- Phase 3 added `retrievedTips: List[String] = Nil` as 8th field on `HabitContext`. Default Nil keeps frozen Phase 1/2 tests compiling.
+
+## Trait + frozen fake service compatibility
+
+- When adding a new abstract method to `HabitCompletionService` (or any trait implemented by a frozen test fake), give the new method a concrete default on the trait (e.g., `IO.raiseError(new NotImplementedError(...))`). This prevents the frozen fake from requiring modification. The real `DefaultHabitCompletionService` still overrides it.
+
+## pgvector / TipRepository
+
+- `TipRepository` uses IO directly, no trait. Doobie has no `Meta[Vector[Float]]`; use the textual literal helper `v.mkString("[", ",", "]")` and cast via `$literal::vector` in SQL.
+- `TipRepositorySpec` must use `pgvector/pgvector:pg17` image (not `postgres:17-alpine`) — the vector extension is only available on the pgvector image.
+- `TipRepositorySpec` does NOT run Liquibase — it creates the extension and table via raw SQL in `beforeAll`.
+
+## SeedTips / IOApp.Simple
+
+- Use `IO(Source.fromResource(...)).bracket(src => IO(src.getLines().toList))(src => IO(src.close()))` for classpath resource reading inside IO context. Never call `unsafeRunSync()` inside an `IOApp.Simple.run` implementation.
+- `cats.syntax.all._` provides `traverse_` on `List`.
 
 ## Codec pattern
 
@@ -37,7 +53,8 @@ type: project
 
 - `scalafmtAll` Gradle task does not exist — there is no `.scalafmt.conf` and the scalafmt Gradle plugin is not configured. No formatter step to run.
 - Build output directory is redirected to `LOCALAPPDATA/habit-tracker-build` to avoid OneDrive file-lock issues on Windows.
-- Docker tests run in the regular `./gradlew test` but specs carry `@Ignore` — they are skipped (counted as 51 skipped), not failed.
+- Docker tests run in the regular `./gradlew test` but specs carry `@Ignore` — they are skipped (counted as ~58 skipped after Phase 3), not failed.
+- New route classes that use `ErrorResponse` (e.g. for BadRequest) must import `HabitCodecs._` in addition to `CompletionCodecs._` — `ErrorResponse` encoder lives in `HabitCodecs`.
 
 ## Liquibase changeset path
 

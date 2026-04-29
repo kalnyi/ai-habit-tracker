@@ -50,8 +50,8 @@ object EmbeddingClient {
       basicRequest
         .post(uri"$API_URL")
         .header("Authorization", s"Bearer $API_KEY")
-        .header("content-type", "application/json")
         .body(bodyJson)
+        .header("Content-Type", "application/json", replaceExisting = true)
         .response(asString)
 
     HttpClientCatsBackend.resource[F]().use { backend =>

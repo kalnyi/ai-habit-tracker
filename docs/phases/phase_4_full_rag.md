@@ -7,18 +7,18 @@ Agents must read this file before taking any action.
 All agents in this phase receive the HARD LIMITS section as a system prompt constraint.
 Do not start Phase 4 until docs/phases/phase_3_review.md confirms all Done When items pass.
 Read all prior ADRs before starting:
-  docs/adrs/ADR-001-phase1-pattern-detection.md
-  docs/adrs/ADR-002-phase2-habit-analysis.md
-  docs/adrs/ADR-003-phase3-basic-rag.md
+  docs/adr/ADR-008-phase1-pattern-detection.md
+  docs/adr/ADR-009-phase2-habit-analysis.md
+  docs/adr/ADR-010-phase3-basic-rag.md
 
 ## STACK (read-only reference, do not change)
 - HTTP:        http4s + Ember server
 - Effects:     Cats Effect 3 — all async is F[_]: Async or IO, no Future
 - Database:    Doobie + Postgres (Docker Compose) + pgvector extension
-- JSON:        Circe via http4s-circe, io.circe.generic.auto._
+- JSON:        Circe via http4s-circe, io.circe.generic.semiauto._
 - HTTP client: sttp with cats-effect backend
-- Testing:     munit-cats-effect, CatsEffectSuite, TestContainers
-- Build:       sbt
+- Testing:     ScalaTest AnyWordSpec + @RunWith(classOf[JUnitRunner]) + Testcontainers
+- Build:       Gradle (./gradlew)
 - LLM model:   claude-sonnet-4-20250514
 - Embeddings:  text-embedding-3-small via OpenAI API (dimension: 1536)
 
@@ -131,7 +131,7 @@ Follow the exact same pattern as TipRepository — named SQL val, same method
 signatures adjusted for userId parameter.
 
 ```scala
-class NoteRepository[F[_]: Async](xa: Transactor[F]) {
+class NoteRepository(xa: Transactor[IO]) {
 
   def insert(
     userId:    Long,
@@ -403,7 +403,7 @@ Do not mark phase complete until all items pass.
 - [ ] Phase 1 tests pass unchanged
 - [ ] Phase 2 tests pass unchanged
 - [ ] Phase 3 tests pass (TipsResponse tests updated for new field names)
-- [ ] sbt test passes in full with zero failures
+- [ ] ./gradlew test passes in full with zero failures
 
 ---
 
@@ -422,7 +422,7 @@ The HARD LIMITS block is part of your constraints.
 Produce an ADR covering: NoteRepository design, parallel retrieval approach,
 deduplication algorithm justification, eval endpoint design, logging strategy,
 TipsResponse breaking change migration approach.
-Write output to: docs/adrs/ADR-004-phase4-full-rag.md
+Write output to: docs/adr/ADR-011-phase4-full-rag.md
 
 ### Developer agent
 Read the PBI, the ADR, the Scope section of this file, and all prior ADRs.
@@ -430,7 +430,7 @@ The HARD LIMITS block is part of your constraints.
 Start with Step 1 (database) and verify before writing application code.
 Handle the TipsResponse breaking change first — update model and existing tests
 before adding new functionality.
-Run sbt compile after each new file. Run sbt test when all files are complete.
+Run ./gradlew compileScala after each new file. Run ./gradlew test when all files are complete.
 Fix all failures before reporting done.
 
 ### Reviewer agent
@@ -441,7 +441,7 @@ Pay specific attention to:
   - Logging content (must be scores/counts only — read the actual log statements)
   - Deduplication purity (no IO in Deduplication.scala)
   - NoteRepository userId filtering (run the specific test)
-Run: sbt test and report pass/fail counts.
+Run: ./gradlew test and report pass/fail counts.
 Write review output to: docs/phases/phase_4_review.md
 Report any use of Future or non-pure deduplicate as blocking issues.
 
