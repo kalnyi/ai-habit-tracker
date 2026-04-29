@@ -7,6 +7,10 @@ import com.habittracker.repository.{AnalyticsRepository, HabitRepository}
 
 trait AnalyticsService {
   def buildHabitContext(userId: Long): IO[HabitContext]
+
+  /** Derives a plain-text query string from the user's habit context for use
+    * as the embedding query in the RAG tips pipeline. Pure: no IO, no F[_]. */
+  def buildTipsQuery(ctx: HabitContext): String
 }
 
 final class DefaultAnalyticsService(
@@ -47,4 +51,21 @@ final class DefaultAnalyticsService(
       correlatedPairs    = correlated,
       momentumScores     = momentumScores
     )
+
+  override def buildTipsQuery(ctx: HabitContext): String = {
+    val top3 = ctx.consistencyRanking.take(3).map(_._1)
+    val worstDays = ctx.completionByDay.toList
+      .sortBy(_._2)
+      .take(2)
+      .map(_._1)
+
+    if (top3.isEmpty || worstDays.size < 2) {
+      "General habit-building practical advice."
+    } else {
+      val habitsStr = top3.mkString(", ")
+      val worst1    = worstDays.head
+      val worst2    = worstDays(1)
+      s"Habits I'm working on: $habitsStr. I struggle most on $worst1 and $worst2. What practical advice helps?"
+    }
+  }
 }

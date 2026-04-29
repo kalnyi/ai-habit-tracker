@@ -1,6 +1,6 @@
 package com.habittracker.prompt
 
-import com.habittracker.model.HabitContext
+import com.habittracker.model.{HabitContext, RetrievedTip}
 
 object PromptBuilder {
 
@@ -88,16 +88,37 @@ object PromptBuilder {
   }
 
   // ---------------------------------------------------------------------------
+  // Phase 3: RAG retrieved-context section
+  // ---------------------------------------------------------------------------
+
+  // Grounding means injecting retrieved external knowledge into the prompt so
+  // the LLM synthesises its response from those specific facts rather than
+  // relying solely on patterns absorbed during training. A "cold" (ungrounded)
+  // prompt asks the LLM to reason from general knowledge; a grounded prompt
+  // anchors it in the retrieved tips that are most semantically relevant to
+  // this particular user's habits and context.
+  def retrievedContextSection(tips: List[RetrievedTip]): String =
+    if (tips.isEmpty) ""
+    else {
+      val lines = tips.map { rt =>
+        s"- ${rt.tip.content}"
+      }
+      "Relevant habit-science tips retrieved for this user (use as supporting evidence, not verbatim):\n" +
+        lines.mkString("\n")
+    }
+
+  // ---------------------------------------------------------------------------
   // Build
   // ---------------------------------------------------------------------------
 
-  def build(ctx: HabitContext): String =
+  def build(ctx: HabitContext, tips: List[RetrievedTip] = Nil): String =
     List(
       streakSection(ctx),
       dayPatternSection(ctx),
       rankingSection(ctx),
       timeOfDaySection(ctx),
       correlationSection(ctx),
-      momentumSection(ctx)
+      momentumSection(ctx),
+      retrievedContextSection(tips)
     ).filter(_.nonEmpty).mkString("\n\n")
 }

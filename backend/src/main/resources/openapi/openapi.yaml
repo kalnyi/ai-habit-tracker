@@ -257,6 +257,58 @@ paths:
                 $ref: '#/components/schemas/AnalysisResponse'
         '500':
           description: Upstream LLM failure or internal error
+  /users/{userId}/habits/tips:
+    parameters:
+      - name: userId
+        in: path
+        required: true
+        schema:
+          type: integer
+          format: int64
+    get:
+      summary: Get LLM-generated personalised tips with retrieved corpus context
+      operationId: getHabitTips
+      responses:
+        '200':
+          description: Successful response with retrieved tips and narrative
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TipsResponse'
+        '500':
+          description: Upstream LLM, embeddings, or internal error
+  /users/{userId}/habits/completions/batch:
+    parameters:
+      - name: userId
+        in: path
+        required: true
+        schema:
+          type: integer
+          format: int64
+    post:
+      summary: Record multiple habit completions in one request (partial success)
+      operationId: recordHabitCompletionsBatch
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: array
+              items:
+                $ref: '#/components/schemas/BatchCompletionItem'
+      responses:
+        '200':
+          description: Inserted and skipped lists; HTTP 200 even when all skipped
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BatchCompletionResponse'
+        '400':
+          description: Malformed request body
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
   /users/{userId}/habits/{habitId}/completions/{completionId}:
     parameters:
       - name: userId
@@ -405,6 +457,7 @@ components:
         - timeOfDayPatterns
         - correlatedPairs
         - momentumScores
+        - retrievedTips
       properties:
         userId:
           type: integer
@@ -450,6 +503,10 @@ components:
           additionalProperties:
             type: number
             format: double
+        retrievedTips:
+          type: array
+          items:
+            type: string
     InsightResponse:
       type: object
       required: [analytics, narrative]
@@ -473,3 +530,72 @@ components:
       properties:
         message:
           type: string
+    HabitTip:
+      type: object
+      required: [id, content]
+      properties:
+        id:
+          type: integer
+          format: int64
+        content:
+          type: string
+    RetrievedTip:
+      type: object
+      required: [tip, similarityScore]
+      properties:
+        tip:
+          $ref: '#/components/schemas/HabitTip'
+        similarityScore:
+          type: number
+          format: double
+    TipsResponse:
+      type: object
+      required: [tips, narrative]
+      properties:
+        tips:
+          type: array
+          items:
+            $ref: '#/components/schemas/RetrievedTip'
+        narrative:
+          type: string
+    BatchCompletionItem:
+      type: object
+      required: [habitId, completedOn]
+      properties:
+        habitId:
+          type: string
+          format: uuid
+        completedOn:
+          type: string
+          format: date
+        note:
+          type: string
+          nullable: true
+        completedAt:
+          type: string
+          format: date-time
+          nullable: true
+    SkippedCompletion:
+      type: object
+      required: [habitId, completedOn, reason]
+      properties:
+        habitId:
+          type: string
+          format: uuid
+        completedOn:
+          type: string
+          format: date
+        reason:
+          type: string
+    BatchCompletionResponse:
+      type: object
+      required: [inserted, skipped]
+      properties:
+        inserted:
+          type: array
+          items:
+            $ref: '#/components/schemas/HabitCompletionResponse'
+        skipped:
+          type: array
+          items:
+            $ref: '#/components/schemas/SkippedCompletion'

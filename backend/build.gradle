@@ -159,6 +159,20 @@ tasks.register('update', JavaExec) {
 }
 
 // ---------------------------------------------------------------------------
+// SeedTips runner — embeds and inserts the habit-tips corpus into pgvector.
+// Usage: ./gradlew runSeedTips
+// Requires: OPENAI_API_KEY in env, Postgres up, habit_tips table exists.
+// ---------------------------------------------------------------------------
+tasks.register('runSeedTips', JavaExec) {
+    group         = 'application'
+    description   = 'Embeds and inserts the habit-tips corpus into the habit_tips table.'
+    classpath     = sourceSets.main.runtimeClasspath
+    mainClass     = 'com.habittracker.scripts.SeedTips'
+    standardInput = System.in
+    dependsOn     = ['classes']
+}
+
+// ---------------------------------------------------------------------------
 // Scala compiler options
 // ---------------------------------------------------------------------------
 tasks.withType(ScalaCompile).configureEach {

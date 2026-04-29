@@ -1,6 +1,6 @@
 package com.habittracker.http
 
-import com.habittracker.model.{AnalysisResponse, HabitContext, InsightResponse}
+import com.habittracker.model.{AnalysisResponse, HabitContext, HabitTip, InsightResponse, RetrievedTip, TipsResponse}
 import io.circe.{Decoder, Encoder}
 import io.circe.generic.semiauto._
 
@@ -31,4 +31,15 @@ object AnalyticsCodecs {
     deriveEncoder[AnalysisResponse]
   implicit val analysisResponseDecoder: Decoder[AnalysisResponse] =
     deriveDecoder[AnalysisResponse]
+
+  // ---------------------------------------------------------------------------
+  // Phase 3: RAG corpus types
+  // ---------------------------------------------------------------------------
+
+  implicit val habitTipEncoder:      Encoder[HabitTip]      = deriveEncoder[HabitTip]
+  implicit val habitTipDecoder:      Decoder[HabitTip]      = deriveDecoder[HabitTip]
+  implicit val retrievedTipEncoder:  Encoder[RetrievedTip]  = deriveEncoder[RetrievedTip]
+  implicit val retrievedTipDecoder:  Decoder[RetrievedTip]  = deriveDecoder[RetrievedTip]
+  implicit val tipsResponseEncoder:  Encoder[TipsResponse]  = deriveEncoder[TipsResponse]
+  implicit val tipsResponseDecoder:  Decoder[TipsResponse]  = deriveDecoder[TipsResponse]
 }
