@@ -2,7 +2,7 @@ package com.habittracker.prompt
 
 import org.junit.runner.RunWith
 import org.scalatestplus.junit.JUnitRunner
-import com.habittracker.model.HabitContext
+import com.habittracker.model.{HabitContext, HabitTip, RetrievedTip}
 import org.scalatest.matchers.should.Matchers
 import org.scalatest.wordspec.AnyWordSpec
 
@@ -174,6 +174,49 @@ class PromptBuilderSpec extends AnyWordSpec with Matchers {
         result shouldBe PromptBuilder.streakSection(ctxStreaksOnly)
         // No triple newline from adjacent empty sections
         result should not include "\n\n\n"
+      }
+    }
+
+    // -------------------------------------------------------------------------
+    // Phase 3: retrievedContextSection
+    // -------------------------------------------------------------------------
+
+    "retrievedContextSection" should {
+
+      "return a non-empty String for non-empty tips list" in {
+        val tips = List(
+          RetrievedTip(HabitTip(1L, "Stack your habits"), 0.9),
+          RetrievedTip(HabitTip(2L, "Reduce friction"),   0.85)
+        )
+        PromptBuilder.retrievedContextSection(tips).nonEmpty shouldBe true
+      }
+
+      "return empty string for Nil without error" in {
+        PromptBuilder.retrievedContextSection(Nil) shouldBe ""
+      }
+    }
+
+    // -------------------------------------------------------------------------
+    // Phase 3: build with tips
+    // -------------------------------------------------------------------------
+
+    "build with non-empty tips" should {
+
+      "include the retrieved-context preamble in the output" in {
+        val tips = List(
+          RetrievedTip(HabitTip(1L, "Stack your habits"), 0.9)
+        )
+        val result = PromptBuilder.build(fullyPopulated, tips)
+        result should include("Relevant habit-science tips retrieved for this user")
+      }
+    }
+
+    "build without tips (default Nil)" should {
+
+      "produce the same output as build(ctx, Nil) — regression guard" in {
+        val withDefault = PromptBuilder.build(fullyPopulated)
+        val withExplicitNil = PromptBuilder.build(fullyPopulated, Nil)
+        withDefault shouldBe withExplicitNil
       }
     }
   }

@@ -1,27 +1,24 @@
 # Reviewer Agent Memory
 # Habit Tracker · Agent Swarm
-# Last updated: Phase 2 retrospective (2026-04-29)
+# Last updated: Phase 3 retrospective (2026-04-29)
 
 ---
 
-## Known Non-Blocking Gaps (accepted by ADR-008 and ADR-009)
+## Known Non-Blocking Gaps (accepted by ADR-008, ADR-009, ADR-010)
 
-These are accepted trade-offs, not defects. Report them as "known accepted gaps"
-in the review, not as blocking issues:
+These are accepted trade-offs, not defects. Report as "known accepted gaps", not blocking:
 
-1. No unit test for InsightsRoutes (Phase 1), AnalysisRoutes (Phase 2), or
-   TipsRoutes (Phase 3). AnthropicClient.complete is called directly at the route
-   call site per HARD LIMIT "no abstraction over the API call". The route is
-   untestable without a live API key.
+1. No unit test for InsightsRoutes, AnalysisRoutes, TipsRoutes, NoteRoutes (Phase 4).
+   Live API clients called directly at the route call site per HARD LIMIT.
 
-2. ANTHROPIC_API_KEY startup failure path is not covered by automated test.
-   Verified manually by engineer: unset var → ./gradlew run → observe error.
-   Scala object-init cannot be tested in the same JVM without a child process.
-   Same applies to OPENAI_API_KEY (Phase 3).
+2. ANTHROPIC_API_KEY and OPENAI_API_KEY startup failure paths not covered by automated test.
+   Verified manually only. Same pattern for any future API key.
 
 3. grep -r "akka" src/ returns 5 results from application.conf and logback.xml.
-   These are config leftovers from the http4s migration (commit e558cd3, before Phase 1).
-   No Scala akka imports exist. Not a failure — note as pre-existing tech debt.
+   Config leftovers from the http4s migration. No Scala akka imports. Pre-existing.
+
+4. SeedTipsIdempotencySpec tests TipRepository directly, not SeedTips.run.
+   Accepted under the live-API @Ignore trade-off. Note this in review; not blocking.
 
 ---
 
@@ -36,38 +33,35 @@ Run ./gradlew test and report pass/fail counts from that output.
 ## Review Output Location
 
 Write review output to: docs/phases/phase_N_review.md
-(e.g. docs/phases/phase_3_review.md for Phase 3)
-
-This file is required by the retrospective process. If it is not written,
-the next retrospective cannot confirm Done When items passed.
+(e.g. docs/phases/phase_4_review.md for Phase 4)
 
 ---
 
 ## Test Coverage Expectations by Phase
 
-Phase 1 test surface:
-  - InsightPromptSpec: 4 pure unit tests (should always pass in CI)
-  - DoobieAnalyticsRepositorySpec: 4 Testcontainers tests (@Ignore — manual Docker only)
-  - All pre-Phase-1 tests: must remain passing
+Phase 1 test surface (must remain passing):
+  - InsightPromptSpec: 4 pure unit tests
+  - DoobieAnalyticsRepositorySpec: 4 Testcontainers tests (@Ignore)
 
-Phase 2 test surface (verified in Phase 2 review — must remain passing in Phase 3):
-  - PromptBuilderSpec: 16 pure unit tests (6 section non-empty + 6 section empty-data +
-    build full + build filter-empty + constant)
-  - DoobieAnalyticsRepositorySpec: 5 new SQL tests (timeOfDaySuccessPattern ×1,
-    crossHabitCorrelation ×2, momentumScore ×2) — all @Ignore, Docker only
-  - HabitCompletionCodecsSpec: 13 tests including completedAt round-trips
-  - HabitCompletionRoutesSpec: 13 tests (completedAt = None on existing cases)
-  - Phase 1 regression: GET /users/{userId}/habits/insights must still work
+Phase 2 test surface (must remain passing):
+  - PromptBuilderSpec: 19 pure unit tests (includes Phase 3 additions)
+  - DoobieAnalyticsRepositorySpec: 5 new SQL tests (@Ignore)
+  - HabitCompletionCodecsSpec: 15 tests
+  - HabitCompletionRoutesSpec: 16 tests
 
-Phase 3 test surface (to verify when reviewing Phase 3):
-  - TipRepository tests: insert, findSimilar (topK results), findSimilar (ordered),
-    findSimilar (empty table) — all Testcontainers, @Ignore
-  - New PromptBuilder tests: retrievedContextSection non-empty, retrievedContextSection
-    empty, build with tips, build without tips (Phase 2 regression)
-  - SeedTips idempotency test against test database
-  - Phase 1 and Phase 2 regression: both endpoints still return 200
-  - Integration test for GET /users/{userId}/habits/tips: accepted as manual-only
-    per the established trade-off (AnthropicClient + EmbeddingClient not stubbable)
+Phase 3 test surface (must remain passing):
+  - TipRepositorySpec: 4 tests (@Ignore, pgvector/pgvector:pg17 image)
+  - SeedTipsIdempotencySpec: 1 test (@Ignore)
+  - PromptBuilder tests (Phase 3 additions): 4 tests
+  - TipsResponse tests: UPDATE EXPECTED for Phase 4 field rename (externalTips/personalNotes)
+
+Phase 4 test surface (to verify when reviewing Phase 4):
+  - NoteRepositorySpec: 4 Testcontainers tests (insert, findSimilar topK, userId filtering, empty)
+  - DeduplicationSpec: 6 pure unit tests
+  - New PromptBuilder tests: personalNotesSection (×2), build with both sources (×2)
+  - Parallel retrieval test: verifies both findSimilar calls are made
+  - Integration tests: POST /notes + GET /tips, evaluate with match, evaluate without match
+  - Phase 1, 2, 3 regression: all must pass (TipsResponse tests updated for rename)
 
 ---
 
@@ -77,8 +71,7 @@ The phase briefs have incorrect types for habitId-keyed maps.
 When reviewing code for any phase, the correct types are:
   streaks:        Map[UUID, Int]    (not Map[Long, Int])
   momentumScores: Map[UUID, Double] (not Map[Long, Double])
-If the developer used Long for these maps, flag as blocking — the types do not
-match HabitRepository.listActive which returns List[Habit] with id: UUID.
+Flag as blocking if the developer used Long.
 
 ---
 
@@ -88,36 +81,70 @@ ADRs live at docs/adr/ (not docs/adrs/ — index.md has this wrong).
   Phase 1: docs/adr/ADR-008-phase1-pattern-detection.md
   Phase 2: docs/adr/ADR-009-phase2-habit-analysis.md
   Phase 3: docs/adr/ADR-010-phase3-basic-rag.md
-If the Architect wrote to docs/adrs/ or used wrong numbers, flag as blocking.
+  Phase 4: docs/adr/ADR-011-phase4-full-rag.md
+If the Architect wrote to the wrong path, flag as blocking.
 
 ---
 
-## HabitContext Defaults Pattern (Phase 2 established)
+## HabitContext Defaults Pattern (safe — do not flag)
 
-Phase 2 added default values to the three new HabitContext fields to preserve
-the frozen InsightPromptSpec. This is accepted and safe — production code always
-supplies all fields explicitly. Do NOT flag these defaults as blocking issues.
-Phase 3 adds retrievedTips: List[String] = Nil using the same pattern — also safe.
-
----
-
-## Inline Comments Are Mandatory in Phase 3
-
-Phase 3 introduces four required inline comment locations. Missing or content-free
-comments (e.g. restating the code) are a BLOCKING issue:
-  1. EmbeddingClient — explains what an embedding vector is in plain terms
-  2. TipRepository.similaritySearchSql — explains cosine similarity in plain terms
-  3. TipRepository.findSimilar — explains why ORDER BY distance gives semantic results
-  4. PromptBuilder.retrievedContextSection — explains what "grounding" means in RAG
-
-Read the actual comments. A comment like "// embeds the text" fails — it must explain
-the concept to a reader with no prior knowledge of embeddings or RAG.
+New HabitContext fields with default values (= Map.empty, = Nil) are a safe
+compile-time shim for frozen tests. Production code always supplies all fields.
+Do NOT flag these defaults as blocking.
 
 ---
 
-## Phase 2 Tech Debt (carry to Phase 3 if not resolved)
+## Service Trait Concrete Default Pattern (safe — do not flag)
 
-These are warnings from the Phase 2 review — not blocking, but worth noting:
-- HabitCompletionCodecsSpec: missing completedAt-populated round-trip test
-- DoobieAnalyticsRepositorySpec: timeOfDaySuccessPattern has no evening/night seed
-- PromptBuilder: habit UUIDs used instead of names in streakSection/momentumSection
+New service trait methods with `IO.raiseError(NotImplementedError)` defaults are
+intentional — prevents breaking frozen test fakes. Do NOT flag as blocking.
+
+---
+
+## sttp Content-Type Check (Phase 4 and beyond)
+
+For any new sttp HTTP client (e.g., calls to external APIs):
+Verify that Content-Type is set AFTER .body() with replaceExisting = true:
+  .body(bodyJson)
+  .header("Content-Type", "application/json", replaceExisting = true)
+
+Setting it BEFORE .body() is a bug — sttp's string body setter overrides earlier headers.
+This caused a production failure in Phase 3 (EmbeddingClient returned HTTP 400 from OpenAI).
+AnthropicClient has the same bug but is harmless (Anthropic is lenient). Flag as blocking
+in any new client where the API is strict about Content-Type.
+
+---
+
+## Inline Comments — Mandatory Locations
+
+Phase 3 established 4 mandatory inline comment locations (all pass as of Phase 3 review).
+Phase 4 adds a 5th:
+  5. TipsRoutes (or wherever retrieveBoth is defined) — explains why parTupled is used
+     for parallel retrieval vs sequential. Reviewer will read the actual comment.
+     A content-free comment ("// run both in parallel") fails — must explain latency
+     benefit and Cats IO parTupled mechanics.
+
+---
+
+## Phase 3 Tech Debt (carry to Phase 4 if not resolved)
+
+- HabitCompletionCodecsSpec: missing HabitCompletionResponse completedAt round-trip
+- HabitCompletionCodecsSpec: missing BatchCompletionResponse/SkippedCompletion codec unit tests
+- SeedTipsIdempotencySpec: add // NOTE: SeedTips.run is not called here comment
+- PromptBuilder: UUID rendering in streakSection/momentumSection instead of habit names
+
+---
+
+## Phase 4 Special Checks
+
+**Deduplication purity:** `Deduplication.scala` must contain no F[_], no IO, no Future.
+Any effect type in Deduplication is a blocking issue.
+
+**Logging content:** `RagLogger` must log scores and counts only — never tip content,
+note content, or user text of any kind. Read the actual log statements.
+
+**NoteRepository userId filtering:** Verify a dedicated test confirms findSimilar does
+not return other users' notes. Missing userId filter is a blocking issue.
+
+**parTupled usage:** Parallel retrieval must use `parTupled` from cats.syntax.parallel.
+Using Future, Thread, or any non-IO concurrency primitive is a blocking issue.

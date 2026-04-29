@@ -1,6 +1,6 @@
 ---
-name: Project: habit CRUD, completion, user domain, and Phase 1 PBIs (PBI-001 through PBI-013)
-description: Decisions and open questions recorded during authoring of habit CRUD, completions, user domain, and Phase 1 pattern detection PBIs
+name: Project: habit CRUD, completion, user domain, Phase 1, Phase 2, and Phase 3 PBIs (PBI-001 through PBI-017)
+description: Decisions and open questions recorded during authoring of PBIs 001 through 017, covering habit CRUD, completions, user domain, Phase 1 pattern detection, Phase 2 analysis, and Phase 3 RAG tips
 type: project
 ---
 
@@ -53,6 +53,30 @@ to http4s (completed before Phase 1 began — confirmed by git commit e558cd3).
   are carry-over contracts for Phase 2 — must not be designed to block Phase 2 extension.
 - ADR required before Developer agent proceeds (file structure, wiring, test approach).
 
+**Decisions in PBI-015 through PBI-017 (Phase 3 RAG tips + batch completions):**
+- Phase 3 brief scope is three PBIs: PBI-015 (RAG tips endpoint), PBI-016 (batch
+  completions), PBI-017 (unique constraint verification).
+- PBI-015 maps 24 ACs directly to the Done When checklist (phase_3_basic_rag.md).
+- pgvector setup lives in a Docker Compose init script, not a Liquibase migration.
+- TipRepository uses IO directly (not F[_]: Async) — phase brief has documentation drift.
+- EmbeddingClient follows the exact same structural pattern as AnthropicClient.
+- CRITICAL FINDING (PBI-017): The UNIQUE constraint `uq_habit_completions_habit_day`
+  on `(habit_id, completed_on)` already exists in migration 002. The phase brief
+  describes adding it as new migration 006 — this is INCORRECT. No migration 006
+  is needed for this constraint. The service-layer ConflictError mapping and HTTP
+  409 response are also already implemented in DoobieHabitCompletionRepository
+  and ErrorHandler. PBI-017 is a verification/documentation PBI, not an
+  implementation PBI (complexity XS).
+- Batch completions (PBI-016) reuse the existing ConflictError from
+  HabitCompletionRepository.create — no new repository method needed for
+  duplicate detection.
+- Batch endpoint route: POST /users/{userId}/habits/completions/batch (no habitId
+  in path). Must be registered before the UUIDVar(habitId) pattern in
+  HabitCompletionRoutes to avoid http4s path matching ambiguity.
+- Batch always returns HTTP 200 — no 207 Multi-Status.
+- Batch service method signature: IO[BatchCompletionResponse] (not IO[Either[...]]).
+- Migration 006 slot is reserved for future genuinely new schema changes.
+
 **Open questions / pending engineer decisions (as of 2026-04-17):**
 - Response envelope for GET /habits: bare array vs `{ "data": [] }` wrapper
   (still unconfirmed but bare array observed in code).
@@ -61,7 +85,18 @@ to http4s (completed before Phase 1 began — confirmed by git commit e558cd3).
 - Whether the Architect needs a new ADR for completions schema or extends
   the existing schema ADR (noted in PBI-008).
 
+**Open questions from Phase 3 (as of 2026-04-29, raised for engineer resolution):**
+- PBI-016: Should there be a maximum batch size limit, or is it unbounded for PoC?
+  (Currently documented as unbounded — engineer should confirm.)
+- PBI-016: ADR-010 covers batch design — engineer should confirm no separate ADR
+  is needed for the batch endpoint.
+- PBI-017: Phase 3 brief says "New Liquibase migration (006)" for the unique
+  constraint — constraint already exists. Engineer should confirm PBI-017
+  requires no migration and ADR-010 documents this. See ambiguities section
+  in phase_3_pbi.md.
+
 **How to apply:** When writing future PBIs that touch completions or Habit entity,
 reference these decisions. Always use Liquibase terminology (not Flyway) for migration
 steps. Always use Gradle (`./gradlew test`) not sbt. Phase 1 files are frozen
-contracts — Phase 2 PBIs extend them, never redefine.
+contracts — Phase 2 PBIs extend them, never redefine. Always check actual migration
+files before writing PBIs about schema constraints — briefs may be stale.

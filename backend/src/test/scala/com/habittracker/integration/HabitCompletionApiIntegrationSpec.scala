@@ -10,12 +10,14 @@ import com.comcast.ip4s._
 import com.habittracker.http.CompletionCodecs._
 import com.habittracker.http.HabitCodecs._
 import com.habittracker.http.dto.{
+  BatchCompletionItem,
+  BatchCompletionResponse,
   CreateHabitCompletionRequest,
   CreateHabitRequest,
   HabitCompletionResponse,
   HabitResponse
 }
-import com.habittracker.http.{DocsRoutes, HabitCompletionRoutes, HabitRoutes}
+import com.habittracker.http.{BatchCompletionRoutes, DocsRoutes, HabitCompletionRoutes, HabitRoutes}
 import com.habittracker.repository.{DoobieHabitCompletionRepository, DoobieHabitRepository}
 import com.habittracker.service.{DefaultHabitCompletionService, DefaultHabitService}
 import doobie.hikari.HikariTransactor
@@ -107,6 +109,7 @@ class HabitCompletionApiIntegrationSpec
     val completionSvc  = new DefaultHabitCompletionService(habitRepo, completionRepo, Clock[IO])
     val allRoutes      = new DocsRoutes().routes <+>
                          new HabitRoutes(habitService).routes <+>
+                         new BatchCompletionRoutes(completionSvc).routes <+>
                          new HabitCompletionRoutes(completionSvc).routes
 
     val (server, shutdown) = EmberServerBuilder
@@ -314,6 +317,63 @@ class HabitCompletionApiIntegrationSpec
       val completion = decode[HabitCompletionResponse](createResp.body()).toOption.get
 
       sendDelete(s"/users/1/habits/${habit1.id}/completions/${completion.id}").statusCode() shouldBe 404
+    }
+  }
+
+  // ---------------------------------------------------------------------------
+  // PBI-017: UNIQUE constraint verification — single endpoint 409 (AC-4)
+  // ---------------------------------------------------------------------------
+
+  "POST /users/1/habits/{habitId}/completions (PBI-017 AC-4)" should {
+
+    "return 409 on duplicate and response body has a non-empty message" in {
+      val habit = createHabit("Duplicate test habit")
+      val body  = CreateHabitCompletionRequest(today, None, None).asJson.noSpaces
+
+      sendPost(s"/users/1/habits/${habit.id}/completions", body).statusCode() shouldBe 201
+      val dupResp = sendPost(s"/users/1/habits/${habit.id}/completions", body)
+      dupResp.statusCode() shouldBe 409
+
+      // ErrorResponse must carry a non-empty message
+      val json = io.circe.parser.parse(dupResp.body()).toOption.get
+      val message = json.hcursor.downField("message").as[String].toOption.get
+      message should not be empty
+    }
+  }
+
+  // ---------------------------------------------------------------------------
+  // PBI-016: Batch endpoint end-to-end (AC-13) + PBI-017 AC-5
+  // ---------------------------------------------------------------------------
+
+  "POST /users/1/habits/completions/batch (PBI-016 AC-13, PBI-017 AC-5)" should {
+
+    "return HTTP 200 with inserted=2 and skipped=2 for a mixed batch" in {
+      val habit1 = createHabit("Batch habit one")
+      val habit2 = createHabit("Batch habit two")
+
+      // Pre-insert one completion to guarantee a duplicate in the batch
+      sendPost(
+        s"/users/1/habits/${habit1.id}/completions",
+        CreateHabitCompletionRequest(today, None, None).asJson.noSpaces
+      ).statusCode() shouldBe 201
+
+      // Four-item batch: 2 valid, 1 duplicate, 1 non-existent habitId
+      val batchItems = List(
+        BatchCompletionItem(habit1.id,         tomorrow, None, None),
+        BatchCompletionItem(habit2.id,         today,    None, None),
+        BatchCompletionItem(habit1.id,         today,    None, None), // duplicate
+        BatchCompletionItem(UUID.randomUUID(), today,    None, None)  // not found
+      )
+      val batchBody = batchItems.asJson.noSpaces
+
+      val resp = sendPost("/users/1/habits/completions/batch", batchBody)
+      resp.statusCode() shouldBe 200
+
+      val result = decode[BatchCompletionResponse](resp.body()).toOption.get
+      result.inserted.length shouldBe 2
+      result.skipped.length  shouldBe 2
+      result.skipped.forall(_.reason.nonEmpty) shouldBe true
+      result.skipped.count(_.reason.contains("duplicate")) shouldBe 1
     }
   }
 }

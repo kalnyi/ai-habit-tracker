@@ -7,7 +7,7 @@ import cats.effect.testing.scalatest.AsyncIOSpec
 import com.habittracker.TestClocks
 import com.habittracker.domain.AppError.{ConflictError, NotFound}
 import com.habittracker.domain.{Frequency, Habit, HabitCompletion}
-import com.habittracker.http.dto.CreateHabitCompletionRequest
+import com.habittracker.http.dto.{BatchCompletionItem, CreateHabitCompletionRequest}
 import com.habittracker.repository.{HabitCompletionRepository, InMemoryHabitRepository}
 import org.scalatest.matchers.should.Matchers
 import org.scalatest.wordspec.AsyncWordSpec
@@ -362,6 +362,49 @@ class HabitCompletionServiceSpec extends AsyncWordSpec with AsyncIOSpec with Mat
       svc.deleteCompletion(1L, habit.id, UUID.randomUUID()).asserting { result =>
         result.isLeft shouldBe true
         result.swap.toOption.get shouldBe a[NotFound]
+      }
+    }
+  }
+
+  // ---------------------------------------------------------------------------
+  // recordCompletionBatch tests (PBI-016 AC-12)
+  // ---------------------------------------------------------------------------
+
+  "HabitCompletionService.recordCompletionBatch" should {
+
+    "return inserted=2, skipped=2 for a mix of valid, duplicate, and not-found items" in {
+      val habitRepo      = new InMemoryHabitRepository()
+      val completionRepo = new InMemoryHabitCompletionRepository()
+      val (_, _, svc)    = makeService(habitRepo = habitRepo, completionRepo = completionRepo)
+
+      // Seed two active habits
+      val habit1 = makeHabit()
+      val habit2 = makeHabit()
+      habitRepo.store.put(habit1.id, habit1)
+      habitRepo.store.put(habit2.id, habit2)
+
+      // Pre-insert one completion for habit1/today so the batch will hit a duplicate
+      val preReq = CreateHabitCompletionRequest(today, None, None)
+      for {
+        _ <- svc.recordCompletion(1L, habit1.id, preReq)
+
+        // Four-item batch:
+        // 1. valid new completion on habit1 (different date)
+        // 2. valid new completion on habit2
+        // 3. duplicate of the pre-inserted habit1/today
+        // 4. non-existent habitId
+        items = List(
+          BatchCompletionItem(habit1.id, tomorrow,          None, None),
+          BatchCompletionItem(habit2.id, today,             None, None),
+          BatchCompletionItem(habit1.id, today,             None, None), // duplicate
+          BatchCompletionItem(UUID.randomUUID(), today,     None, None)  // not found
+        )
+        result <- svc.recordCompletionBatch(1L, items)
+      } yield {
+        result.inserted.length shouldBe 2
+        result.skipped.length  shouldBe 2
+        result.skipped.count(_.reason.contains("duplicate"))  shouldBe 1
+        result.skipped.count(_.reason.contains("not found"))  shouldBe 1
       }
     }
   }
