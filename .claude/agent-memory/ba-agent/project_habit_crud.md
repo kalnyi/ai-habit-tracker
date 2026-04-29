@@ -1,6 +1,6 @@
 ---
-name: Project: habit CRUD, completion, user domain, Phase 1, Phase 2, and Phase 3 PBIs (PBI-001 through PBI-017)
-description: Decisions and open questions recorded during authoring of PBIs 001 through 017, covering habit CRUD, completions, user domain, Phase 1 pattern detection, Phase 2 analysis, and Phase 3 RAG tips
+name: Project: habit CRUD, completion, user domain, Phase 1–4 PBIs (PBI-001 through PBI-018)
+description: Decisions and open questions recorded during authoring of PBIs 001 through 018, covering habit CRUD, completions, user domain, Phase 1 pattern detection, Phase 2 analysis, Phase 3 RAG tips, and Phase 4 full RAG pipeline
 type: project
 ---
 
@@ -95,8 +95,49 @@ to http4s (completed before Phase 1 began — confirmed by git commit e558cd3).
   requires no migration and ADR-010 documents this. See ambiguities section
   in phase_3_pbi.md.
 
+**Decisions in PBI-018 (Phase 4 full RAG pipeline — 2026-04-29):**
+- Single PBI (PBI-018) covering the entire Phase 4 brief — not decomposed.
+- Initial draft had 34 ACs. Engineer decisions on 2026-04-29 reduced to 29 ACs.
+- TipsResponse field rename (`tips` → `externalTips`, add `personalNotes`) is a
+  BREAKING CHANGE. Phase 3 TipsResponse tests must be updated; this is explicitly
+  allowed. All other Phase 3 tests are frozen.
+- TipsRoutes is NOT frozen in Phase 4 — parallel retrieval replaces sequential.
+  This must be stated explicitly so the Developer agent does not treat it as frozen.
+- NoteRepository uses IO directly (not F[_]: Async) — brief has documentation drift,
+  same as TipRepository in Phase 3.
+- NoteRepository.similaritySearchSql must be a named val — same constraint as
+  TipRepository.similaritySearchSql (AC-15 in revised file).
+- All new sttp HTTP calls must set Content-Type AFTER .body() with replaceExisting = true
+  (Phase 3 production bug — see Developer MEMORY). AnthropicClient and EmbeddingClient
+  are frozen and exempt.
+- user_notes table lives in Docker Compose init SQL (not Liquibase) — same infrastructure
+  boundary established in ADR-010 for habit_tips.
+- Parallel retrieval uses parTupled (cats.syntax.parallel._) — not Future, Thread, or ZIO.
+- retrieveBoth is a def with parameters (queryEmbedding: Vector[Float], userId: Long) —
+  NOT a val or zero-arg def. Both GET /tips and future callers invoke it directly.
+- deduplicate must be a pure function in service/Deduplication.scala — no F[_], no IO.
+- Deduplication thresholds: score diff < 0.05 AND word overlap > 0.8 (keep higher-scored item).
+- TIPS_TOP_K = 2 and NOTES_TOP_K = 2 are named constants (replaces Phase 3 TOP_K = 3).
+- RagLogger: stdout only, scores and counts only — never log tip or note content.
+- EVAL ENDPOINT REMOVED: POST /users/{userId}/habits/tips/evaluate, EvalRequest, EvalResponse,
+  and all eval integration tests removed from PBI-018 per engineer decision 2026-04-29.
+- EvalRequest and EvalResponse case classes NOT added to Analytics.scala (removed with eval endpoint).
+  Only UserNote and NoteRequest are added.
+- POST /notes handled by NoteRoutes — a NEW class in com.habittracker.http, separate from TipsRoutes.
+  TipsRoutes handles only GET /tips. AppResources wires NoteRoutes independently.
+- PromptBuilder.build updated to: build(ctx, tips = Nil, notes = Nil) — backward compatible.
+- personalNotesSection uses "YOUR PAST NOTES:" label; retrievedContextSection uses "RELEVANT TIPS:".
+- Route registration order: NoteRoutes inserted after BatchCompletionRoutes and before HabitRoutes.
+- docs/future_improvements.md is a required deliverable (chunking, embedding cache, token budget,
+  eval persistence, framework introduction).
+- ADR-011 is required at docs/adr/ADR-011-phase4-full-rag.md before Developer starts.
+  ADR-011 does NOT need to cover eval endpoint design (removed).
+- Phase 3 review prerequisite is CONFIRMED MET — docs/phases/phase_3_review.md shows APPROVED.
+
 **How to apply:** When writing future PBIs that touch completions or Habit entity,
 reference these decisions. Always use Liquibase terminology (not Flyway) for migration
 steps. Always use Gradle (`./gradlew test`) not sbt. Phase 1 files are frozen
 contracts — Phase 2 PBIs extend them, never redefine. Always check actual migration
 files before writing PBIs about schema constraints — briefs may be stale.
+Phase briefs consistently have documentation drift on effect types (F[_] vs IO) and
+ADR numbering — always cross-check against agent MEMORY files.

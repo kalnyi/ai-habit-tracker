@@ -66,5 +66,30 @@ type: project
 - When a domain case class gains a new field, update `makeCompletion`/`makeHabit` helpers to accept the new param with a default (`completedAt: Option[Instant] = None`). This keeps existing positional call sites compiling while enabling new tests to set the field explicitly.
 - Fixture names in ScalaTest must NOT shadow ScalaTest matchers. `empty` is a reserved matcher word — use `emptyCtx` or similar.
 
-**Why:** discovered during PBI-013-014 implementation.
+## Phase 4: stdout capture in unit tests
+
+- `Async[F].delay(println(...))` uses Scala's `Predef.println` -> `Console.println` -> `Console.out`.
+- `System.setOut` alone does NOT reliably capture output across multiple test methods in a Gradle worker — Gradle wraps System.out and the second+ test sees an empty capture.
+- Fix: create a fresh `IORuntime` using a single-threaded ExecutionContext for each capture call, AND set both `System.setOut(ps)` and wrap with `Console.withOut(ps) { ... }`. The single-threaded EC ensures `IO.delay` runs on the same thread where the capture is active.
+- Pattern: `IORuntime(ec, ec, IORuntime.global.scheduler, () => (), IORuntimeConfig())` where `ec` is a `newSingleThreadExecutor`.
+- Requires `cats.effect.unsafe.IORuntimeConfig` import.
+
+## Phase 4: Deduplication score thresholds
+
+- The condition `isDuplicate` uses STRICT less-than: `scoreDiff < 0.05`. A difference of exactly 0.05 is NOT a duplicate.
+- Test data must use score pairs where diff is < 0.05 (e.g., 0.90 and 0.88 = diff 0.02), not exactly 0.05 (e.g., 0.90 and 0.85).
+- Same strictness applies to `overlap > 0.8` — exact 0.8 is NOT a duplicate.
+
+## Phase 4 route order
+
+- Phase 4 adds NoteRoutes between BatchCompletionRoutes and HabitRoutes:
+  `DocsRoutes → InsightsRoutes → AnalysisRoutes → TipsRoutes → BatchCompletionRoutes → NoteRoutes → HabitRoutes → HabitCompletionRoutes`.
+
+## Phase 4: NoteRepository RETURNING clause
+
+- `insertSql` in NoteRepository returns `Query0[(Long, Instant)]` using `.query[(Long, Instant)]` (not `.update` with `withUniqueGeneratedKeys`) because we need `created_at` from RETURNING.
+- The `RETURNING id, created_at` clause is the only way to get both fields atomically from PostgreSQL.
+- `doobie.postgres.implicits._` provides `Meta[Instant]` needed for `created_at TIMESTAMPTZ`.
+
+**Why:** discovered during PBI-013-018 implementation.
 **How to apply:** reference these facts at the start of any future backend session to avoid repeating the same exploratory work.

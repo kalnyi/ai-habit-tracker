@@ -1,12 +1,12 @@
 # Developer Agent Memory
 # Habit Tracker · Agent Swarm
-# Last updated: Phase 3 retrospective (2026-04-29)
+# Last updated: Phase 4 retrospective (2026-04-30)
 
 ---
 
 ## HabitContext Field Types (CRITICAL — phase briefs have errors)
 
-HabitContext (com.habittracker.model.Analytics) as of Phase 3:
+HabitContext (com.habittracker.model.Analytics) as of Phase 4:
   userId:             Long
   streaks:            Map[UUID, Int]                  ← UUID, not Long
   completionByDay:    Map[String, Double]
@@ -16,164 +16,139 @@ HabitContext (com.habittracker.model.Analytics) as of Phase 3:
   momentumScores:     Map[UUID, Double]                = Map.empty  ← UUID, not Long
   retrievedTips:      List[String]                     = Nil
 
-Phase 4 may add further fields — use Scala defaults for frozen-test compat (see below).
+Use Scala defaults for any new fields if frozen tests construct HabitContext with fewer args.
 
 ---
 
-## HabitContext Defaults Pattern
+## sttp Content-Type Rule (CRITICAL — learnt from Phase 3 production bug)
 
-When adding new fields to HabitContext, use Scala default values if a frozen test
-constructs HabitContext with fewer arguments and cannot be modified (HARD LIMIT).
-  newField: Map[UUID, Double] = Map.empty
-  newField: List[String]      = Nil
+In sttp v3, .body(string) adds Content-Type: text/plain. Setting the header BEFORE
+.body() is overridden (replaceExisting=false default).
 
-The defaults are only for compile-time compat with frozen tests. Production code
-(DefaultAnalyticsService.buildHabitContext) always supplies all fields by name.
+Always set Content-Type AFTER .body() with replaceExisting = true:
+  basicRequest
+    .post(uri"$url")
+    .header("Authorization", s"Bearer $key")
+    .body(bodyJson)
+    .header("Content-Type", "application/json", replaceExisting = true)  // ← after body
+    .response(asString)
 
----
-
-## sttp Content-Type Rule (CRITICAL — learnt from Phase 3 bug)
-
-In sttp v3, calling `.body(string)` adds `Content-Type: text/plain; charset=utf-8`
-to the request. If you call `.header("content-type", "application/json")` BEFORE
-`.body()`, the body setter overrides it (default replaceExisting=false).
-
-**Always set Content-Type AFTER .body() with replaceExisting = true:**
-
-```scala
-basicRequest
-  .post(uri"$url")
-  .header("Authorization", s"Bearer $key")
-  .body(bodyJson)
-  .header("Content-Type", "application/json", replaceExisting = true)  // ← after body
-  .response(asString)
-```
-
-Anthropic's API is lenient and accepts text/plain — so AnthropicClient works despite
-having this bug. OpenAI (and most strict APIs) require application/json. AnthropicClient
-is frozen so its bug is harmless; all NEW sttp callers must follow the correct pattern.
+Anthropic accepts text/plain (bug harmless there). OpenAI and most APIs are strict.
+AnthropicClient is frozen — bug stays, harmless. All new sttp callers must follow this.
 
 ---
 
 ## Parallel Execution Pattern
 
-Two patterns for concurrent IO:
+parTupled — fixed set of independent IO calls:
+  (io1, io2).parTupled  // requires import cats.syntax.parallel._
 
-1. parTupled — fixed set of independent IO calls with different return types:
-   (io1, io2, io3, io4).parTupled
-   Requires: import cats.syntax.parallel._
+parTraverse — uniform collection:
+  list.parTraverse { x => ... }
 
-2. parTraverse — uniform collection of per-element IO calls:
-   habits.parTraverse { h => ... }
-
-Phase 3 uses parTupled in AnalyticsService (4 user-scoped aggregates) and
-parTraverse for per-habit fan-outs (streak + momentum).
-Phase 4 uses parTupled for parallel retrieval (tips + notes).
+Phase 4 uses parTupled in TipsRoutes.retrieveBoth (tips + notes retrieval).
+Phase 2 uses parTupled in AnalyticsService (4 aggregates) and parTraverse for per-habit fan-outs.
 
 ---
 
 ## Service Trait New-Method Pattern (CRITICAL)
 
-When adding a new method to a service trait where a frozen test fake extends the trait:
-  - Use a concrete default: `def newMethod(...): IO[...] = IO.raiseError(new NotImplementedError(...))`
-  - Do NOT declare it abstract — this breaks frozen fakes (e.g. FakeHabitCompletionService)
-  - The real DefaultXxxService overrides it
-
-This pattern was established in Phase 3 for `HabitCompletionService.recordCompletionBatch`.
+New methods on service traits: concrete default IO.raiseError(new NotImplementedError(...))
+— never abstract. Prevents breaking frozen test fakes. Real impl overrides it.
 
 ---
 
 ## Test Conventions
 
-Use ScalaTest AnyWordSpec + @RunWith(classOf[JUnitRunner]).
-Do NOT use munit-cats-effect or CatsEffectSuite — the codebase uses ScalaTest.
+Use ScalaTest AnyWordSpec + @RunWith(classOf[JUnitRunner]). Not munit-cats-effect.
 
 Testcontainers specs (require Docker):
-  - Annotate with @Ignore (active, not commented out) above @RunWith
-  - Add comment: // requires Docker - run manually
-  - Use PostgreSQLContainer("postgres:17-alpine") for standard specs
-  - Use DockerImageName.parse("pgvector/pgvector:pg17") for specs needing the vector extension
-  - Run Liquibase via DirectoryResourceAccessor
-  - Liquibase changelog path from backend/: Paths.get("../infra/db/changelog")
+  - @Ignore (active) + // requires Docker - run manually
+  - postgres:17-alpine for standard specs
+  - pgvector/pgvector:pg17 for specs needing the vector extension (TipRepositorySpec, NoteRepositorySpec)
 
-Specs requiring Docker AND live API key (e.g. SeedTipsIdempotencySpec):
-  - @Ignore with comment: // requires Docker AND OPENAI_API_KEY - run manually
+Specs requiring Docker AND live API key:
+  - @Ignore + // requires Docker AND OPENAI_API_KEY - run manually
 
-Pure unit tests (no IO, no Docker):
-  - No @Ignore
-  - Extend AnyWordSpec with Matchers
-  - No IORuntime needed
+Pure unit tests: no @Ignore, extend AnyWordSpec with Matchers.
+
+RagLogger test capture: Console.withOut alone fails across cats-effect work-stealing pool.
+Use a fresh single-threaded IORuntime per capture combined with System.setOut(ps).
 
 ---
 
-## AnalyticsCodecs
+## Circe Codecs
 
-com.habittracker.http.AnalyticsCodecs uses semiauto derivation:
-  import io.circe.generic.semiauto._
-  implicit val ... = deriveEncoder[...]
-  implicit val ... = deriveDecoder[...]
-
-UUID KeyEncoder and KeyDecoder are already defined in AnalyticsCodecs.
-Do not redefine them. Add new response encoders/decoders to the same file.
-Import AnalyticsCodecs._ in any route file handling HabitContext or related types.
+Use io.circe.generic.semiauto._ with deriveEncoder/deriveDecoder. Never generic.auto.
+UUID KeyEncoder/KeyDecoder already defined in AnalyticsCodecs — do not redefine.
+Add new codecs to AnalyticsCodecs.scala (analytics types) or CompletionCodecs.scala (completion types).
 
 ---
 
 ## Build Commands
 
-./gradlew compileScala — after creating each new file group
-./gradlew test         — when all files compile; expect InsightPromptSpec to pass,
-                         Testcontainers specs to be skipped (@Ignore)
-grep -r "akka" src/    — run from backend/; 5 results in config files are expected,
-                         no results in Scala source is the pass condition
+./gradlew compileScala — after each new file group
+./gradlew test         — when all files compile
 
 ---
 
 ## AppResources Wiring Pattern
 
-Current route composition in AppResources.make (do not break this order):
+Current route composition (do not break this order):
   new DocsRoutes().routes <+>
   new InsightsRoutes(analyticsService).routes <+>
   new AnalysisRoutes(analyticsService).routes <+>
-  new TipsRoutes(analyticsService, tipRepo).routes <+>
+  new TipsRoutes(analyticsService, tipRepo, noteRepo).routes <+>   ← 3 args as of Phase 4
   new BatchCompletionRoutes(completionSvc).routes <+>
+  new NoteRoutes(noteRepo).routes <+>
   new HabitRoutes(habitService).routes <+>
   new HabitCompletionRoutes(completionSvc).routes
 
-Phase 4 adds NoteRoutes after BatchCompletionRoutes.
-AnthropicClient.API_KEY_CHECK and EmbeddingClient.API_KEY_CHECK are already wired.
+AnthropicClient.API_KEY_CHECK and EmbeddingClient.API_KEY_CHECK already wired.
 
 ---
 
-## Files That Must Not Be Modified in Phase 4
+## TipsResponse Fields (updated Phase 4)
 
-Per HARD LIMITS and established contract:
-  backend/src/main/scala/com/habittracker/client/AnthropicClient.scala
-  backend/src/main/scala/com/habittracker/client/EmbeddingClient.scala
-  backend/src/main/scala/com/habittracker/prompt/InsightPrompt.scala
-  backend/src/main/scala/com/habittracker/http/InsightsRoutes.scala
-  backend/src/main/scala/com/habittracker/http/AnalysisRoutes.scala
+Old (Phase 3): TipsResponse(tips: List[RetrievedTip], narrative: String)
+New (Phase 4): TipsResponse(externalTips: List[RetrievedTip], personalNotes: List[RetrievedTip], narrative: String)
 
-TipsRoutes.scala IS modified in Phase 4 (parallel retrieval replaces sequential).
-PromptBuilder.scala IS modified in Phase 4 (personalNotesSection + updated build).
-Analytics.scala IS modified in Phase 4 (new case classes, updated TipsResponse).
+Zero existing test references to old .tips field were found at Phase 4 implementation time.
+Any future code referencing TipsResponse must use externalTips and personalNotes.
 
-All Phase 1, 2, and 3 test files are frozen EXCEPT TipsResponse-related tests which
-must be updated for the Phase 4 TipsResponse field rename.
+---
+
+## Files That Must Not Be Modified
+
+  AnthropicClient.scala, EmbeddingClient.scala, InsightPrompt.scala,
+  InsightsRoutes.scala, AnalysisRoutes.scala, BatchCompletionRoutes.scala
+
+All Phase 1-4 test files are frozen except those explicitly requiring TipsResponse updates.
+
+---
+
+## Deduplication Algorithm (Deduplication.scala)
+
+Pure object, no F[_] or IO. Thresholds:
+  SCORE_DIFF_THRESHOLD  = 0.05 (strict <)
+  WORD_OVERLAP_THRESHOLD = 0.8  (strict >)
+Both conditions must hold for a duplicate. Higher score wins; tip side wins on tie.
+wordOverlapRatio = sharedWords / max(wordsA.size, wordsB.size)
 
 ---
 
 ## Known Flaky Test
 
-DoobieAnalyticsRepositorySpec — completionRateByDayOfWeek test:
-  TODO: "test is incorrect when running on Wednesday. weekSpan is 3 weeks, not 2"
-  Spec is @Ignore so this does not affect CI. Do not fix here — tracked as tech debt.
+DoobieAnalyticsRepositorySpec — completionRateByDayOfWeek:
+  TODO: incorrect on Wednesdays. @Ignore so no CI impact. Do not fix here.
 
 ---
 
-## Known Tech Debt (from Phase 2 and Phase 3 reviews)
+## Known Tech Debt (accumulated)
 
-1. HabitCompletionCodecsSpec — missing HabitCompletionResponse round-trip with completedAt populated
-2. HabitCompletionCodecsSpec — missing BatchCompletionResponse / SkippedCompletion codec unit tests
-3. SeedTipsIdempotencySpec — tests TipRepository directly, not SeedTips.run (add scope comment)
-4. PromptBuilder streakSection and momentumSection render UUID instead of habit names
+1. HabitCompletionCodecsSpec — HabitCompletionResponse completedAt round-trip missing (Phase 2)
+2. HabitCompletionCodecsSpec — BatchCompletionResponse/SkippedCompletion codec unit tests missing (Phase 3)
+3. SeedTipsIdempotencySpec — add // NOTE: SeedTips.run is not called here comment (Phase 3)
+4. PromptBuilder — UUID rendering instead of habit names in streakSection/momentumSection (Phase 2)
+5. NoteRepository.similaritySearchSql — add one-line comment explaining it is a naming shim (Phase 4)
+6. DeduplicationSpec — missing AND boundary test: overlap too low but score diff within threshold (Phase 4)
