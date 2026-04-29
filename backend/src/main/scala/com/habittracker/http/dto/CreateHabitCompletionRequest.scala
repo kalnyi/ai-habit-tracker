@@ -1,8 +1,9 @@
 package com.habittracker.http.dto
 
-import java.time.LocalDate
+import java.time.{Instant, LocalDate}
 
 final case class CreateHabitCompletionRequest(
     completedOn: LocalDate,
-    note: Option[String]
+    note: Option[String],
+    completedAt: Option[Instant]
 )

@@ -55,7 +55,8 @@ final class DefaultHabitCompletionService(
             habitId = habitId,
             completedOn = req.completedOn,
             note = req.note,
-            createdAt = now
+            createdAt = now,
+            completedAt = req.completedAt
           )
           result <- completionRepo.create(completion)
         } yield result match {
