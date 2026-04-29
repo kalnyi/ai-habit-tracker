@@ -107,9 +107,10 @@ class DoobieHabitCompletionRepositorySpec
   private def makeCompletion(
       habitId: UUID,
       completedOn: LocalDate = LocalDate.of(2026, 4, 17),
-      note: Option[String] = None
+      note: Option[String] = None,
+      completedAt: Option[java.time.Instant] = None
   ): HabitCompletion =
-    HabitCompletion(UUID.randomUUID(), habitId, completedOn, note, Instant.now())
+    HabitCompletion(UUID.randomUUID(), habitId, completedOn, note, Instant.now(), completedAt)
 
   private def run[A](io: IO[A]): A = io.unsafeRunSync()
 

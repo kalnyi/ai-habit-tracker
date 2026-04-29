@@ -103,7 +103,7 @@ class HabitCompletionServiceSpec extends AsyncWordSpec with AsyncIOSpec with Mat
 
     "return NotFound when the habit does not exist" in {
       val (_, _, svc) = makeService()
-      val req         = CreateHabitCompletionRequest(today, None)
+      val req         = CreateHabitCompletionRequest(today, None, None)
       svc.recordCompletion(1L, UUID.randomUUID(), req).asserting { result =>
         result.isLeft shouldBe true
         result.swap.toOption.get shouldBe a[NotFound]
@@ -115,7 +115,7 @@ class HabitCompletionServiceSpec extends AsyncWordSpec with AsyncIOSpec with Mat
       val habit     = makeHabit(deletedAt = Some(Instant.now()))
       val (_, _, svc) = makeService(habitRepo = habitRepo)
       habitRepo.store.put(habit.id, habit)
-      val req = CreateHabitCompletionRequest(today, None)
+      val req = CreateHabitCompletionRequest(today, None, None)
       svc.recordCompletion(1L, habit.id, req).asserting { result =>
         result.isLeft shouldBe true
         result.swap.toOption.get shouldBe a[NotFound]
@@ -128,7 +128,7 @@ class HabitCompletionServiceSpec extends AsyncWordSpec with AsyncIOSpec with Mat
       val (_, _, svc)    = makeService(habitRepo = habitRepo, completionRepo = completionRepo)
       val habit          = makeHabit()
       habitRepo.store.put(habit.id, habit)
-      val req = CreateHabitCompletionRequest(today, None)
+      val req = CreateHabitCompletionRequest(today, None, None)
 
       for {
         _      <- svc.recordCompletion(1L, habit.id, req)
@@ -145,7 +145,7 @@ class HabitCompletionServiceSpec extends AsyncWordSpec with AsyncIOSpec with Mat
       val (_, _, svc)    = makeService(habitRepo = habitRepo, completionRepo = completionRepo)
       val habit          = makeHabit()
       habitRepo.store.put(habit.id, habit)
-      val req = CreateHabitCompletionRequest(today, Some("Felt energised"))
+      val req = CreateHabitCompletionRequest(today, Some("Felt energised"), None)
 
       svc.recordCompletion(1L, habit.id, req).asserting { result =>
         result.isRight shouldBe true
@@ -164,7 +164,7 @@ class HabitCompletionServiceSpec extends AsyncWordSpec with AsyncIOSpec with Mat
       val (_, _, svc)    = makeService(habitRepo = habitRepo, completionRepo = completionRepo)
       val habit          = makeHabit()
       habitRepo.store.put(habit.id, habit)
-      val req = CreateHabitCompletionRequest(today, None)
+      val req = CreateHabitCompletionRequest(today, None, None)
 
       svc.recordCompletion(1L, habit.id, req).asserting { result =>
         result.isRight shouldBe true
@@ -178,7 +178,7 @@ class HabitCompletionServiceSpec extends AsyncWordSpec with AsyncIOSpec with Mat
       val (_, _, svc)    = makeService(habitRepo = habitRepo, completionRepo = completionRepo)
       val habit          = makeHabit(userId = 2L)
       habitRepo.store.put(habit.id, habit)
-      val req = CreateHabitCompletionRequest(today, None)
+      val req = CreateHabitCompletionRequest(today, None, None)
       svc.recordCompletion(1L, habit.id, req).asserting { result =>
         result.isLeft shouldBe true
         result.swap.toOption.get shouldBe a[NotFound]
@@ -220,9 +220,9 @@ class HabitCompletionServiceSpec extends AsyncWordSpec with AsyncIOSpec with Mat
       habitRepo.store.put(habit.id, habit)
 
       for {
-        _ <- svc.recordCompletion(1L, habit.id, CreateHabitCompletionRequest(yesterday, None))
-        _ <- svc.recordCompletion(1L, habit.id, CreateHabitCompletionRequest(today, None))
-        _ <- svc.recordCompletion(1L, habit.id, CreateHabitCompletionRequest(tomorrow, None))
+        _ <- svc.recordCompletion(1L, habit.id, CreateHabitCompletionRequest(yesterday, None, None))
+        _ <- svc.recordCompletion(1L, habit.id, CreateHabitCompletionRequest(today, None, None))
+        _ <- svc.recordCompletion(1L, habit.id, CreateHabitCompletionRequest(tomorrow, None, None))
         result <- svc.listCompletions(1L, habit.id, Some(today), None)
       } yield {
         result.isRight shouldBe true
@@ -242,9 +242,9 @@ class HabitCompletionServiceSpec extends AsyncWordSpec with AsyncIOSpec with Mat
       habitRepo.store.put(habit.id, habit)
 
       for {
-        _ <- svc.recordCompletion(1L, habit.id, CreateHabitCompletionRequest(yesterday, None))
-        _ <- svc.recordCompletion(1L, habit.id, CreateHabitCompletionRequest(today, None))
-        _ <- svc.recordCompletion(1L, habit.id, CreateHabitCompletionRequest(tomorrow, None))
+        _ <- svc.recordCompletion(1L, habit.id, CreateHabitCompletionRequest(yesterday, None, None))
+        _ <- svc.recordCompletion(1L, habit.id, CreateHabitCompletionRequest(today, None, None))
+        _ <- svc.recordCompletion(1L, habit.id, CreateHabitCompletionRequest(tomorrow, None, None))
         result <- svc.listCompletions(1L, habit.id, None, Some(today))
       } yield {
         result.isRight shouldBe true
@@ -264,9 +264,9 @@ class HabitCompletionServiceSpec extends AsyncWordSpec with AsyncIOSpec with Mat
       habitRepo.store.put(habit.id, habit)
 
       for {
-        _ <- svc.recordCompletion(1L, habit.id, CreateHabitCompletionRequest(yesterday, None))
-        _ <- svc.recordCompletion(1L, habit.id, CreateHabitCompletionRequest(today, None))
-        _ <- svc.recordCompletion(1L, habit.id, CreateHabitCompletionRequest(tomorrow, None))
+        _ <- svc.recordCompletion(1L, habit.id, CreateHabitCompletionRequest(yesterday, None, None))
+        _ <- svc.recordCompletion(1L, habit.id, CreateHabitCompletionRequest(today, None, None))
+        _ <- svc.recordCompletion(1L, habit.id, CreateHabitCompletionRequest(tomorrow, None, None))
         result <- svc.listCompletions(1L, habit.id, None, None)
       } yield {
         result.isRight shouldBe true
@@ -325,7 +325,7 @@ class HabitCompletionServiceSpec extends AsyncWordSpec with AsyncIOSpec with Mat
       habitRepo.store.put(habit2.id, habit2)
 
       for {
-        created <- svc.recordCompletion(1L, habit2.id, CreateHabitCompletionRequest(today, None))
+        created <- svc.recordCompletion(1L, habit2.id, CreateHabitCompletionRequest(today, None, None))
         completionId = created.toOption.get.id
         // Try to delete the completion from habit2 using habit1's id
         result <- svc.deleteCompletion(1L, habit1.id, completionId)
@@ -343,7 +343,7 @@ class HabitCompletionServiceSpec extends AsyncWordSpec with AsyncIOSpec with Mat
       habitRepo.store.put(habit.id, habit)
 
       for {
-        created      <- svc.recordCompletion(1L, habit.id, CreateHabitCompletionRequest(today, None))
+        created      <- svc.recordCompletion(1L, habit.id, CreateHabitCompletionRequest(today, None, None))
         completionId  = created.toOption.get.id
         deleteResult <- svc.deleteCompletion(1L, habit.id, completionId)
         listResult   <- svc.listCompletions(1L, habit.id, None, None)

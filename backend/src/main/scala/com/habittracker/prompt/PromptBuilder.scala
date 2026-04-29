@@ -80,7 +80,7 @@ object PromptBuilder {
     if (ctx.momentumScores.isEmpty) ""
     else {
       val lines = ctx.momentumScores.toList.map { case (habitId, score) =>
-        f"- habit $habitId: momentum ${score}%+0.2f (last 30d − prior 30d)"
+        f"- habit $habitId: momentum ${score}%+.2f (last 30d - prior 30d)"
       }
       "Momentum (positive = improving, negative = declining):\n" +
         lines.mkString("\n")

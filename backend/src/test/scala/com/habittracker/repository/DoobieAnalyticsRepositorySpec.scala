@@ -19,7 +19,7 @@ import java.time.{Instant, LocalDate}
 import java.util.UUID
 
 // requires Docker - run manually
-//@Ignore
+@Ignore
 @RunWith(classOf[JUnitRunner])
 class DoobieAnalyticsRepositorySpec
     extends AnyWordSpec
@@ -109,9 +109,10 @@ class DoobieAnalyticsRepositorySpec
   private def makeCompletion(
       habitId: UUID,
       completedOn: LocalDate = LocalDate.now(),
-      note: Option[String] = None
+      note: Option[String] = None,
+      completedAt: Option[Instant] = None
   ): HabitCompletion =
-    HabitCompletion(UUID.randomUUID(), habitId, completedOn, note, Instant.now())
+    HabitCompletion(UUID.randomUUID(), habitId, completedOn, note, Instant.now(), completedAt)
 
   private def run[A](io: IO[A]): A = io.unsafeRunSync()
 
@@ -207,6 +208,130 @@ class DoobieAnalyticsRepositorySpec
 
       ranking.map(_._1) shouldBe List("High-consistency", "Low-consistency")
       ranking.head._2 should be > ranking(1)._2
+    }
+  }
+
+  "timeOfDaySuccessPattern" should {
+
+    "return correct rates for the 4 buckets and exclude NULL completed_at" in {
+      val habit = makeHabit()
+      run(habitRepo.create(habit))
+
+      val today = LocalDate.now()
+      val day1  = today.minusDays(2)
+      val day2  = today.minusDays(1)
+      val day3  = today
+
+      // day1: morning (09:00 UTC)
+      run(completionRepo.create(makeCompletion(
+        habit.id, day1,
+        completedAt = Some(java.time.Instant.parse(day1.toString + "T09:00:00Z"))
+      )))
+      // day2: afternoon (14:00 UTC)
+      run(completionRepo.create(makeCompletion(
+        habit.id, day2,
+        completedAt = Some(java.time.Instant.parse(day2.toString + "T14:00:00Z"))
+      )))
+      // day3: NULL completed_at — must be excluded
+      run(completionRepo.create(makeCompletion(habit.id, day3, completedAt = None)))
+
+      val result = run(analyticsRepo.timeOfDaySuccessPattern(1L))
+
+      // Only day1 and day2 count (day3 excluded due to NULL)
+      // morning  = 1 / 2 = 0.5
+      // afternoon = 1 / 2 = 0.5
+      result.keySet shouldBe Set("morning", "afternoon", "evening", "night")
+      result("morning")   shouldBe 0.5 +- 0.01
+      result("afternoon") shouldBe 0.5 +- 0.01
+      result("evening")   shouldBe 0.0
+      result("night")     shouldBe 0.0
+    }
+  }
+
+  "crossHabitCorrelation" should {
+
+    "return the top pair when 3 habits have known co-occurrence" in {
+      val habitA = makeHabit("HabitA")
+      val habitB = makeHabit("HabitB")
+      val habitC = makeHabit("HabitC")
+      run(habitRepo.create(habitA))
+      run(habitRepo.create(habitB))
+      run(habitRepo.create(habitC))
+
+      val today = LocalDate.now()
+
+      // A and B together on 4 distinct days
+      (0 to 3).foreach { i =>
+        val d = today.minusDays(i.toLong)
+        run(completionRepo.create(makeCompletion(habitA.id, d)))
+        run(completionRepo.create(makeCompletion(habitB.id, d)))
+      }
+      // A and C together on 1 day
+      run(completionRepo.create(makeCompletion(habitA.id, today.minusDays(5))))
+      run(completionRepo.create(makeCompletion(habitC.id, today.minusDays(5))))
+      // B and C: no co-occurrence
+
+      val result = run(analyticsRepo.crossHabitCorrelation(1L))
+
+      result should not be empty
+      val (a, b, rate) = result.head
+      Set(a, b) shouldBe Set("HabitA", "HabitB")
+      rate should be > 0.5
+    }
+
+    "return empty list when the user has 1 habit" in {
+      val habit = makeHabit("Solo")
+      run(habitRepo.create(habit))
+
+      val today = LocalDate.now()
+      (0 to 4).foreach { i =>
+        run(completionRepo.create(makeCompletion(habit.id, today.minusDays(i.toLong))))
+      }
+
+      val result = run(analyticsRepo.crossHabitCorrelation(1L))
+      result shouldBe List.empty
+    }
+  }
+
+  "momentumScore" should {
+
+    "return positive when last-30 has more completions than prior-30 (both >= 7)" in {
+      val habit = makeHabit()
+      run(habitRepo.create(habit))
+
+      val today = LocalDate.now()
+
+      // 12 completions in last 30 days (well-spaced)
+      (1 to 12).foreach { i =>
+        run(completionRepo.create(makeCompletion(habit.id, today.minusDays(i.toLong * 2))))
+      }
+      // 8 completions in prior 30 days (days 31–60)
+      (1 to 8).foreach { i =>
+        run(completionRepo.create(makeCompletion(habit.id, today.minusDays(30L + i.toLong * 3))))
+      }
+
+      val score = run(analyticsRepo.momentumScore(1L, habit.id))
+      // (12/30) - (8/30) = 0.1333...
+      score should be > 0.0
+    }
+
+    "return 0.0 when fewer than 7 completions in either window" in {
+      val habit = makeHabit()
+      run(habitRepo.create(habit))
+
+      val today = LocalDate.now()
+
+      // Only 3 completions in last 30 days (insufficient)
+      (1 to 3).foreach { i =>
+        run(completionRepo.create(makeCompletion(habit.id, today.minusDays(i.toLong))))
+      }
+      // 8 completions in prior 30 days
+      (1 to 8).foreach { i =>
+        run(completionRepo.create(makeCompletion(habit.id, today.minusDays(30L + i.toLong * 3))))
+      }
+
+      val score = run(analyticsRepo.momentumScore(1L, habit.id))
+      score shouldBe 0.0
     }
   }
 }
