@@ -1,6 +1,6 @@
 package com.habittracker.http
 
-import com.habittracker.model.{HabitContext, InsightResponse}
+import com.habittracker.model.{AnalysisResponse, HabitContext, InsightResponse}
 import io.circe.{Decoder, Encoder}
 import io.circe.generic.semiauto._
 
@@ -27,4 +27,8 @@ object AnalyticsCodecs {
   implicit val habitContextDecoder:    Decoder[HabitContext]    = deriveDecoder[HabitContext]
   implicit val insightResponseEncoder: Encoder[InsightResponse] = deriveEncoder[InsightResponse]
   implicit val insightResponseDecoder: Decoder[InsightResponse] = deriveDecoder[InsightResponse]
+  implicit val analysisResponseEncoder: Encoder[AnalysisResponse] =
+    deriveEncoder[AnalysisResponse]
+  implicit val analysisResponseDecoder: Decoder[AnalysisResponse] =
+    deriveDecoder[AnalysisResponse]
 }

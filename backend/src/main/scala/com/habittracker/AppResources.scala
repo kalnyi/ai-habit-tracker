@@ -3,7 +3,7 @@ package com.habittracker
 import cats.effect.{Clock, IO, Resource}
 import cats.syntax.semigroupk._
 import com.habittracker.client.AnthropicClient
-import com.habittracker.http.{DocsRoutes, HabitCompletionRoutes, HabitRoutes, InsightsRoutes}
+import com.habittracker.http.{AnalysisRoutes, DocsRoutes, HabitCompletionRoutes, HabitRoutes, InsightsRoutes}
 import com.habittracker.repository.{
   DoobieAnalyticsRepository,
   DoobieHabitCompletionRepository,
@@ -38,6 +38,7 @@ object AppResources {
       analyticsService  = new DefaultAnalyticsService(habitRepo, analyticsRepo)
       allRoutes         = new DocsRoutes().routes <+>
                           new InsightsRoutes(analyticsService).routes <+>
+                          new AnalysisRoutes(analyticsService).routes <+>
                           new HabitRoutes(habitService).routes <+>
                           new HabitCompletionRoutes(completionSvc).routes
     } yield AppResources(allRoutes, userRepo)
