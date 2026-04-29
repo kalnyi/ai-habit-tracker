@@ -6,17 +6,17 @@ This file is the single source of truth for Phase 3.
 Agents must read this file before taking any action.
 All agents in this phase receive the HARD LIMITS section as a system prompt constraint.
 Do not start Phase 3 until docs/phases/phase_2_review.md confirms all Done When items pass.
-Read docs/adrs/ADR-001-phase1-pattern-detection.md and
-docs/adrs/ADR-002-phase2-habit-analysis.md before starting.
+Read docs/adr/ADR-008-phase1-pattern-detection.md and
+docs/adr/ADR-009-phase2-habit-analysis.md before starting.
 
 ## STACK (read-only reference, do not change)
 - HTTP:        http4s + Ember server
 - Effects:     Cats Effect 3 — all async is F[_]: Async or IO, no Future
 - Database:    Doobie + Postgres (Docker Compose) + pgvector extension
-- JSON:        Circe via http4s-circe, io.circe.generic.auto._
+- JSON:        Circe via http4s-circe, io.circe.generic.semiauto._
 - HTTP client: sttp with cats-effect backend
-- Testing:     munit-cats-effect, CatsEffectSuite, TestContainers
-- Build:       sbt
+- Testing:     ScalaTest AnyWordSpec + @RunWith(classOf[JUnitRunner]) + Testcontainers
+- Build:       Gradle (./gradlew)
 - LLM model:   claude-sonnet-4-20250514
 - Embeddings:  text-embedding-3-small via OpenAI API (dimension: 1536)
 
@@ -145,7 +145,7 @@ object EmbeddingClient {
 ### 4. New file: src/main/scala/repository/TipRepository.scala
 
 ```scala
-class TipRepository[F[_]: Async](xa: Transactor[F]) {
+class TipRepository(xa: Transactor[IO]) {
 
   def insert(content: String, embedding: Vector[Float]): F[HabitTip]
 
@@ -197,7 +197,7 @@ Required content variety — include tips from each of these areas:
 ### 6. New file: src/main/scala/scripts/SeedTips.scala
 
 One-time script to embed and store the tip corpus. Not part of the server.
-Run manually: sbt "runMain scripts.SeedTips"
+Run manually: ./gradlew runSeedTips  (Architect defines this task in build.gradle)
 
 ```scala
 object SeedTips extends IOApp.Simple {
@@ -336,7 +336,7 @@ Do not mark phase complete until all items pass.
 - [ ] SeedTips idempotency test passes
 - [ ] Phase 1 tests still pass unchanged
 - [ ] Phase 2 tests still pass unchanged
-- [ ] sbt test passes in full with zero failures
+- [ ] ./gradlew test passes in full with zero failures
 
 ---
 
@@ -349,21 +349,21 @@ Produce a PBI with acceptance criteria mapped 1:1 to the Done When checklist.
 Write output to: docs/phases/phase_3_pbi.md
 
 ### Architect agent
-Read the PBI, this full file, ADR-001, and ADR-002.
+Read the PBI, this full file, ADR-008, and ADR-009.
 The HARD LIMITS block is part of your constraints.
 Produce an ADR covering: pgvector setup decisions, EmbeddingClient design,
 TipRepository query approach, how SeedTips integrates with the build,
 how the tips endpoint composes existing and new components.
-Write output to: docs/adrs/ADR-003-phase3-basic-rag.md
+Write output to: docs/adr/ADR-010-phase3-basic-rag.md
 
 ### Developer agent
 Read the PBI, the ADR, the Scope section of this file, and prior ADRs.
 The HARD LIMITS block is part of your constraints.
 Start with infrastructure (Step 1) and verify Docker Compose before writing code.
 Implement all items in Scope in order.
-Run sbt compile after each new file.
+Run ./gradlew compileScala after each new file.
 Run SeedTips script and verify rows inserted before implementing the endpoint.
-Run sbt test when all files are complete.
+Run ./gradlew test when all files are complete.
 Fix all failures before reporting done.
 
 ### Reviewer agent
@@ -371,7 +371,7 @@ Read the Done When checklist, ADR-003, and prior ADRs.
 Verify each checklist item independently.
 Specifically check all 4 inline comment locations — read the actual comments
 and verify they explain the concept in plain terms, not just restate the code.
-Run: sbt test and report pass/fail counts.
+Run: ./gradlew test and report pass/fail counts.
 Write review output to: docs/phases/phase_3_review.md
 Report missing or inadequate inline comments as blocking issues.
 
