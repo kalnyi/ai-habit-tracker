@@ -237,6 +237,26 @@ paths:
                 $ref: '#/components/schemas/InsightResponse'
         '500':
           description: Upstream LLM failure or internal error
+  /users/{userId}/habits/analysis:
+    parameters:
+      - name: userId
+        in: path
+        required: true
+        schema:
+          type: integer
+          format: int64
+    get:
+      summary: Get LLM-generated multi-section behavioural analysis
+      operationId: getHabitAnalysis
+      responses:
+        '200':
+          description: Successful response with extended analytics and coaching narrative
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AnalysisResponse'
+        '500':
+          description: Upstream LLM failure or internal error
   /users/{userId}/habits/{habitId}/completions/{completionId}:
     parameters:
       - name: userId
@@ -344,6 +364,10 @@ components:
         note:
           type: string
           nullable: true
+        completedAt:
+          type: string
+          format: date-time
+          nullable: true
     HabitCompletionResponse:
       type: object
       required:
@@ -367,9 +391,20 @@ components:
         createdAt:
           type: string
           format: date-time
+        completedAt:
+          type: string
+          format: date-time
+          nullable: true
     HabitContext:
       type: object
-      required: [userId, streaks, completionByDay, consistencyRanking]
+      required:
+        - userId
+        - streaks
+        - completionByDay
+        - consistencyRanking
+        - timeOfDayPatterns
+        - correlatedPairs
+        - momentumScores
       properties:
         userId:
           type: integer
@@ -394,7 +429,36 @@ components:
                 - type: string
                 - type: number
                   format: double
+        timeOfDayPatterns:
+          type: object
+          additionalProperties:
+            type: number
+            format: double
+        correlatedPairs:
+          type: array
+          items:
+            type: array
+            minItems: 3
+            maxItems: 3
+            items:
+              oneOf:
+                - type: string
+                - type: number
+                  format: double
+        momentumScores:
+          type: object
+          additionalProperties:
+            type: number
+            format: double
     InsightResponse:
+      type: object
+      required: [analytics, narrative]
+      properties:
+        analytics:
+          $ref: '#/components/schemas/HabitContext'
+        narrative:
+          type: string
+    AnalysisResponse:
       type: object
       required: [analytics, narrative]
       properties:

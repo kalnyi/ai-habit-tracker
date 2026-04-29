@@ -30,9 +30,9 @@ final class DoobieHabitCompletionRepository(transactor: Transactor[IO])
   // ---------------------------------------------------------------------------
 
   private implicit val completionRead: Read[HabitCompletion] =
-    Read[(UUID, UUID, LocalDate, Option[String], Instant)].map {
-      case (id, habitId, completedOn, note, createdAt) =>
-        HabitCompletion(id, habitId, completedOn, note, createdAt)
+    Read[(UUID, UUID, LocalDate, Option[String], Instant, Option[Instant])].map {
+      case (id, habitId, completedOn, note, createdAt, completedAt) =>
+        HabitCompletion(id, habitId, completedOn, note, createdAt, completedAt)
     }
 
   // ---------------------------------------------------------------------------
@@ -41,13 +41,13 @@ final class DoobieHabitCompletionRepository(transactor: Transactor[IO])
 
   private def insertQuery(c: HabitCompletion): Update0 =
     sql"""
-      INSERT INTO habit_completions (id, habit_id, completed_on, note, created_at)
-      VALUES (${c.id}, ${c.habitId}, ${c.completedOn}, ${c.note}, ${c.createdAt})
+      INSERT INTO habit_completions (id, habit_id, completed_on, note, created_at, completed_at)
+      VALUES (${c.id}, ${c.habitId}, ${c.completedOn}, ${c.note}, ${c.createdAt}, ${c.completedAt})
     """.update
 
   private def findByHabitAndDateQuery(habitId: UUID, completedOn: LocalDate): Query0[HabitCompletion] =
     sql"""
-      SELECT id, habit_id, completed_on, note, created_at
+      SELECT id, habit_id, completed_on, note, created_at, completed_at
       FROM habit_completions
       WHERE habit_id = $habitId AND completed_on = $completedOn
     """.query[HabitCompletion]
@@ -58,7 +58,7 @@ final class DoobieHabitCompletionRepository(transactor: Transactor[IO])
       to: Option[LocalDate]
   ): Query0[HabitCompletion] = {
     val base     = fr"""
-      SELECT id, habit_id, completed_on, note, created_at
+      SELECT id, habit_id, completed_on, note, created_at, completed_at
       FROM habit_completions
       WHERE habit_id = $habitId
     """

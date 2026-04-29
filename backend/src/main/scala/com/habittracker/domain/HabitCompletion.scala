@@ -8,5 +8,6 @@ final case class HabitCompletion(
     habitId: UUID,
     completedOn: LocalDate,
     note: Option[String],
-    createdAt: Instant
+    createdAt: Instant,
+    completedAt: Option[Instant]
 )

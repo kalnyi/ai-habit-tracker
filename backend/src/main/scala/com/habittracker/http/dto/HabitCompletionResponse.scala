@@ -10,7 +10,8 @@ final case class HabitCompletionResponse(
     habitId: UUID,
     completedOn: LocalDate,
     note: Option[String],
-    createdAt: Instant
+    createdAt: Instant,
+    completedAt: Option[Instant]
 )
 
 object HabitCompletionResponse {
@@ -20,6 +21,7 @@ object HabitCompletionResponse {
       habitId = c.habitId,
       completedOn = c.completedOn,
       note = c.note,
-      createdAt = c.createdAt
+      createdAt = c.createdAt,
+      completedAt = c.completedAt
     )
 }

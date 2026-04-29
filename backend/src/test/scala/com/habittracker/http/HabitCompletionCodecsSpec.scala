@@ -48,7 +48,8 @@ class HabitCompletionCodecsSpec extends AnyWordSpec with Matchers {
       result shouldBe Right(
         CreateHabitCompletionRequest(
           completedOn = LocalDate.of(2026, 4, 17),
-          note = Some("Felt energised")
+          note = Some("Felt energised"),
+          completedAt = None
         )
       )
     }
@@ -59,7 +60,8 @@ class HabitCompletionCodecsSpec extends AnyWordSpec with Matchers {
       result shouldBe Right(
         CreateHabitCompletionRequest(
           completedOn = LocalDate.of(2026, 4, 17),
-          note = None
+          note = None,
+          completedAt = None
         )
       )
     }
@@ -75,13 +77,36 @@ class HabitCompletionCodecsSpec extends AnyWordSpec with Matchers {
     }
 
     "round-trip through encode/decode" in {
-      val req = CreateHabitCompletionRequest(LocalDate.of(2026, 4, 17), Some("note"))
+      val req = CreateHabitCompletionRequest(LocalDate.of(2026, 4, 17), Some("note"), None)
       decode[CreateHabitCompletionRequest](req.asJson.noSpaces) shouldBe Right(req)
     }
 
     "round-trip without note" in {
-      val req = CreateHabitCompletionRequest(LocalDate.of(2026, 4, 17), None)
+      val req = CreateHabitCompletionRequest(LocalDate.of(2026, 4, 17), None, None)
       decode[CreateHabitCompletionRequest](req.asJson.noSpaces) shouldBe Right(req)
+    }
+
+    "decode a request with completedAt populated" in {
+      val json = """{"completedOn":"2026-04-17","completedAt":"2026-04-17T09:30:00Z"}"""
+      val result = decode[CreateHabitCompletionRequest](json)
+      result shouldBe Right(
+        CreateHabitCompletionRequest(
+          completedOn = LocalDate.of(2026, 4, 17),
+          note = None,
+          completedAt = Some(Instant.parse("2026-04-17T09:30:00Z"))
+        )
+      )
+    }
+
+    "decode a request without completedAt (treated as None)" in {
+      val json = """{"completedOn":"2026-04-17"}"""
+      decode[CreateHabitCompletionRequest](json) shouldBe Right(
+        CreateHabitCompletionRequest(
+          completedOn = LocalDate.of(2026, 4, 17),
+          note = None,
+          completedAt = None
+        )
+      )
     }
   }
 
@@ -93,7 +118,8 @@ class HabitCompletionCodecsSpec extends AnyWordSpec with Matchers {
         habitId = UUID.fromString("3fa85f64-5717-4562-b3fc-2c963f66afa6"),
         completedOn = LocalDate.of(2026, 4, 17),
         note = Some("Felt energised"),
-        createdAt = Instant.parse("2026-04-17T10:30:00Z")
+        createdAt = Instant.parse("2026-04-17T10:30:00Z"),
+        completedAt = None
       )
       decode[HabitCompletionResponse](resp.asJson.noSpaces) shouldBe Right(resp)
     }
@@ -104,7 +130,8 @@ class HabitCompletionCodecsSpec extends AnyWordSpec with Matchers {
         habitId = UUID.randomUUID(),
         completedOn = LocalDate.of(2026, 4, 17),
         note = None,
-        createdAt = Instant.parse("2026-04-17T10:30:00Z")
+        createdAt = Instant.parse("2026-04-17T10:30:00Z"),
+        completedAt = None
       )
       decode[HabitCompletionResponse](resp.asJson.noSpaces) shouldBe Right(resp)
     }
@@ -115,7 +142,8 @@ class HabitCompletionCodecsSpec extends AnyWordSpec with Matchers {
         UUID.randomUUID(),
         LocalDate.of(2026, 4, 17),
         None,
-        Instant.parse("2026-04-17T10:30:00Z")
+        Instant.parse("2026-04-17T10:30:00Z"),
+        None
       )
       val json = resp.asJson
       json.hcursor.downField("note").focus.map(_.isNull) shouldBe Some(true)

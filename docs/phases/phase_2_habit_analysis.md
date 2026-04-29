@@ -6,7 +6,7 @@ This file is the single source of truth for Phase 2.
 Agents must read this file before taking any action.
 All agents in this phase receive the HARD LIMITS section as a system prompt constraint.
 Do not start Phase 2 until docs/phases/phase_1_review.md confirms all Done When items pass.
-Read docs/phases/phase_1_pbi.md and docs/adrs/ADR-001-phase1-pattern-detection.md
+Read docs/phases/phase_1_pbi.md and docs/adr/ADR-008-phase1-pattern-detection.md
 before starting — Phase 2 builds on Phase 1 patterns exactly.
 
 ## STACK (read-only reference, do not change)
@@ -16,7 +16,7 @@ before starting — Phase 2 builds on Phase 1 patterns exactly.
 - JSON:        Circe via http4s-circe, io.circe.generic.auto._
 - HTTP client: sttp with cats-effect backend
 - Testing:     munit-cats-effect, CatsEffectSuite
-- Build:       sbt
+- Build:       Gradle (./gradlew)
 - LLM model:   claude-sonnet-4-20250514
 
 ---
@@ -71,14 +71,14 @@ Add three new fields. Do not remove or rename existing fields.
 case class HabitContext(
   // Phase 1 fields — unchanged
   userId:             Long,
-  streaks:            Map[Long, Int],
+  streaks:            Map[UUID, Int],
   completionByDay:    Map[String, Double],
   consistencyRanking: List[(String, Double)],
 
   // Phase 2 additions
   timeOfDayPatterns:  Map[String, Double],       // bucket -> completion rate
   correlatedPairs:    List[(String, String, Double)], // (habitA, habitB, coOccurrenceRate)
-  momentumScores:     Map[Long, Double]          // habitId -> momentum (-1.0 to +1.0)
+  momentumScores:     Map[UUID, Double]          // habitId -> momentum (-1.0 to +1.0)
 )
 ```
 
@@ -105,7 +105,7 @@ both habits were completed (co-occurrence rate).
 Return the top 3 pairs sorted by co-occurrence rate descending.
 If the user has fewer than 2 habits, return empty list.
 
-**momentumScore(userId: Long, habitId: Long): F[Double]**
+**momentumScore(userId: Long, habitId: UUID): F[Double]**
 Compute as defined above.
 Called once per habit in buildHabitContext — use parSequence or parTraverse
 to run all momentum queries in parallel.
@@ -238,7 +238,7 @@ Do not mark phase complete until all items pass.
 - [ ] Integration test passes with seeded data
 - [ ] GET /users/{userId}/habits/insights still returns HTTP 200 (Phase 1 regression)
 - [ ] Phase 1 test files pass without modification
-- [ ] sbt test passes in full with zero failures
+- [ ] ./gradlew test passes in full with zero failures
 
 ---
 
@@ -255,13 +255,13 @@ Read the PBI, this full file, and ADR-001 from Phase 1.
 The HARD LIMITS block is part of your constraints.
 Produce an ADR covering: PromptBuilder design decisions, how the 6 new queries
 are run (parallel vs sequential), how AnalysisResponse is structured.
-Write output to: docs/adrs/ADR-002-phase2-habit-analysis.md
+Write output to: docs/adr/ADR-009-phase2-habit-analysis.md
 
 ### Developer agent
 Read the PBI, the ADR, the Scope section of this file, and the Phase 1 ADR.
 The HARD LIMITS block is part of your constraints.
 Implement all items in Scope.
-Run sbt compile after each new file. Run sbt test when all files are complete.
+Run ./gradlew compileScala after each new file. Run ./gradlew test when all files are complete.
 Verify Phase 1 endpoint still works before reporting done.
 Fix all failures before reporting done.
 
@@ -269,7 +269,7 @@ Fix all failures before reporting done.
 Read the Done When checklist, the Phase 2 ADR, and the Phase 1 ADR.
 Verify each checklist item independently.
 Explicitly verify Phase 1 regression items.
-Run: sbt test and report pass/fail counts.
+Run: ./gradlew test and report pass/fail counts.
 Write review output to: docs/phases/phase_2_review.md
 Report blocking issues separately from minor observations.
 

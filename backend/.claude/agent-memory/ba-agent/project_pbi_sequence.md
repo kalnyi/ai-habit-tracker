@@ -12,12 +12,17 @@ PBIs 001-006 cover the core habit CRUD:
 - PBI-005: PUT /habits/{id} (update)
 - PBI-006: DELETE /habits/{id} (soft-delete)
 
-PBI-007 has been written: OpenAPI / Swagger UI documentation endpoint.
+PBI-007: OpenAPI / Swagger UI documentation endpoint.
+PBI-008 through PBI-011: Habit completion CRUD (domain/schema, record, list, delete).
+PBI-012: Add user to domain.
+PBI-013: Phase 1 — Pattern detection and LLM narrative endpoint (GET /users/{userId}/habits/insights).
+  Output file: docs/phases/phase_1_pbi.md
+PBI-014: Phase 2 — Habit analysis endpoint with extended context and structured prompt (GET /users/{userId}/habits/analysis).
+  Output file: docs/phases/phase_2_pbi.md
 
-PLAN-007 (replace Flyway with Liquibase) exists as a plan doc but did not consume the PBI-007 slot — that plan has no corresponding PBI file.
-
-Next available PBI number: 008.
+Next available PBI number: 015.
 
 **Why:** Tracking this avoids numbering collisions across sessions.
 
-**How to apply:** Always check docs/pbis/ for the highest existing number before assigning a new PBI number.
+**How to apply:** Always check docs/pbis/ for highest numbered file AND docs/phases/ for phase PBI files
+before assigning a new PBI number. Phase PBIs live in docs/phases/ not docs/pbis/.

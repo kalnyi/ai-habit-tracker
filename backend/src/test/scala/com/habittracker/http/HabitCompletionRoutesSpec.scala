@@ -39,7 +39,8 @@ class HabitCompletionRoutesSpec extends AsyncWordSpec with AsyncIOSpec with Matc
     habitId     = habitId,
     completedOn = today,
     note        = Some("Felt energised"),
-    createdAt   = fixedNow
+    createdAt   = fixedNow,
+    completedAt = None
   )
 
   // ---------------------------------------------------------------------------
@@ -85,7 +86,7 @@ class HabitCompletionRoutesSpec extends AsyncWordSpec with AsyncIOSpec with Matc
 
     "return 201 and correct JSON body on happy path" in {
       val service = new FakeHabitCompletionService()
-      val body    = CreateHabitCompletionRequest(today, Some("Felt energised"))
+      val body    = CreateHabitCompletionRequest(today, Some("Felt energised"), None)
       val req     = Request[IO](Method.POST, Uri.unsafeFromString(s"/users/1/habits/$habitId/completions"))
         .withEntity(body)
       appWith(service).run(req).flatMap { resp =>
@@ -103,7 +104,7 @@ class HabitCompletionRoutesSpec extends AsyncWordSpec with AsyncIOSpec with Matc
 
     "return 400 when habitId is not a valid UUID" in {
       val service = new FakeHabitCompletionService()
-      val body    = CreateHabitCompletionRequest(today, None)
+      val body    = CreateHabitCompletionRequest(today, None, None)
       val req     = Request[IO](Method.POST, uri"/users/1/habits/not-a-uuid/completions").withEntity(body)
       appWith(service).run(req).asserting { resp =>
         resp.status shouldBe Status.BadRequest
@@ -134,7 +135,7 @@ class HabitCompletionRoutesSpec extends AsyncWordSpec with AsyncIOSpec with Matc
       val service = new FakeHabitCompletionService(
         recordResult = IO.pure(Left(NotFound(s"Habit '$habitId' not found")))
       )
-      val body = CreateHabitCompletionRequest(today, None)
+      val body = CreateHabitCompletionRequest(today, None, None)
       val req  = Request[IO](Method.POST, Uri.unsafeFromString(s"/users/1/habits/$habitId/completions"))
         .withEntity(body)
       appWith(service).run(req).asserting { resp =>
@@ -146,7 +147,7 @@ class HabitCompletionRoutesSpec extends AsyncWordSpec with AsyncIOSpec with Matc
       val service = new FakeHabitCompletionService(
         recordResult = IO.pure(Left(ConflictError(s"Already completed for $today")))
       )
-      val body = CreateHabitCompletionRequest(today, None)
+      val body = CreateHabitCompletionRequest(today, None, None)
       val req  = Request[IO](Method.POST, Uri.unsafeFromString(s"/users/1/habits/$habitId/completions"))
         .withEntity(body)
       appWith(service).run(req).asserting { resp =>

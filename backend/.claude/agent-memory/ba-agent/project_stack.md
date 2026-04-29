@@ -1,15 +1,21 @@
 ---
 name: Confirmed tech stack
-description: Actual stack in use — supersedes the TBD entries in CLAUDE.md
+description: Actual stack in use — supersedes the TBD entries in CLAUDE.md and earlier Akka HTTP entries
 type: project
 ---
 
-Backend framework is Akka HTTP 10.5.3 (not http4s), as decided by engineer override in ADR-001. JSON via akka-http-circe + Circe 0.14.9. Effect type: Future at the HTTP layer, cats-effect IO below.
+The project migrated from Akka HTTP to http4s before Phase 1 (ADR-006). The current confirmed stack is:
 
-Build command is `gradle test` (no gradlew wrapper — Gradle 9 installed globally).
+- HTTP framework: http4s 0.23.27 + Ember server (not Akka HTTP)
+- Effects: Cats Effect 3 — routes and services use IO directly, not Future
+- Database: Doobie + PostgreSQL via Docker Compose
+- JSON: Circe via http4s-circe; codecs use io.circe.generic.semiauto (not auto) in dedicated codecs files
+- HTTP client: sttp with cats-effect backend
+- Testing: ScalaTest AnyWordSpec + @RunWith(classOf[JUnitRunner]) (NOT munit-cats-effect/CatsEffectSuite)
+- Build: Gradle with gradlew wrapper (./gradlew test, ./gradlew compileScala) — Gradle is the build tool; phase briefs may say "sbt" but that is documentation drift
+- LLM: Claude via Anthropic API, model claude-sonnet-4-20250514
+- Frontend: TBD (no frontend PBIs written yet)
 
-Frontend framework is still TBD — no frontend PBIs have been written yet.
+**Why:** Engineer decided to migrate to http4s before Phase 1 (ADR-006). Earlier memory entry reflected the pre-migration state and is now obsolete.
 
-**Why:** Engineer overrode the initial http4s recommendation citing team familiarity with Akka HTTP and its streaming support for future LLM features.
-
-**How to apply:** Any PBI or ADR flag touching the HTTP layer must reference Akka HTTP, not http4s. Do not suggest http4s-specific libraries.
+**How to apply:** Any PBI or ADR flag touching the HTTP layer must reference http4s, not Akka HTTP. Do not suggest Akka HTTP, akka-streams, or akka-http-circe. Phase brief STACK sections that say "sbt" as the build tool are wrong — always use ./gradlew.
