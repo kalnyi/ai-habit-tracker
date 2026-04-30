@@ -3,12 +3,16 @@ package com.habittracker
 import cats.effect.{Clock, IO, Resource}
 import cats.syntax.semigroupk._
 import com.habittracker.client.{AnthropicClient, EmbeddingClient}
-import com.habittracker.http.{AnalysisRoutes, BatchCompletionRoutes, DocsRoutes, HabitCompletionRoutes, HabitRoutes, InsightsRoutes, TipsRoutes}
+import com.habittracker.http.{
+  AnalysisRoutes, BatchCompletionRoutes, DocsRoutes, HabitCompletionRoutes,
+  HabitRoutes, InsightsRoutes, NoteRoutes, TipsRoutes
+}
 import com.habittracker.repository.{
   DoobieAnalyticsRepository,
   DoobieHabitCompletionRepository,
   DoobieHabitRepository,
   DoobieUserRepository,
+  NoteRepository,
   TipRepository,
   UserRepository
 }
@@ -36,14 +40,16 @@ object AppResources {
       completionRepo    = new DoobieHabitCompletionRepository(xa)
       analyticsRepo     = new DoobieAnalyticsRepository(xa)
       tipRepo           = new TipRepository(xa)
+      noteRepo          = new NoteRepository(xa)
       habitService      = new DefaultHabitService(habitRepo, Clock[IO])
       completionSvc     = new DefaultHabitCompletionService(habitRepo, completionRepo, Clock[IO])
       analyticsService  = new DefaultAnalyticsService(habitRepo, analyticsRepo)
       allRoutes         = new DocsRoutes().routes <+>
                           new InsightsRoutes(analyticsService).routes <+>
                           new AnalysisRoutes(analyticsService).routes <+>
-                          new TipsRoutes(analyticsService, tipRepo).routes <+>
+                          new TipsRoutes(analyticsService, tipRepo, noteRepo).routes <+>
                           new BatchCompletionRoutes(completionSvc).routes <+>
+                          new NoteRoutes(noteRepo).routes <+>
                           new HabitRoutes(habitService).routes <+>
                           new HabitCompletionRoutes(completionSvc).routes
     } yield AppResources(allRoutes, userRepo)

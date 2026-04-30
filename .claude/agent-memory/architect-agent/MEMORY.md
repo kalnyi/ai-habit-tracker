@@ -3,3 +3,5 @@
 - [Testcontainers convention](project_testcontainers_convention.md) — repo/integration specs carry @Ignore; only pure unit tests run headlessly in CI.
 - [Build tool](project_build_tool.md) — Gradle (./gradlew), not sbt; phase briefs often say sbt — correct in every ADR/PLAN.
 - [pgvector boundary](project_pgvector_boundary.md) — pgvector extension + corpus tables go in infra/db/init/, never in Liquibase changesets.
+- [Parallel retrieval pattern](project_parallel_retrieval.md) — RAG fan-out IOs use cats parTupled; Future/Thread/ZIO forbidden. retrieveBoth is a parameterised def, not a val.
+- [RAG logger privacy contract](project_rag_logging_privacy.md) — scores and counts only, never tip or note content. Personal notes may contain PII.

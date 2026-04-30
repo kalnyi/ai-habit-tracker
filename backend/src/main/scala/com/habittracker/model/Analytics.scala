@@ -1,5 +1,6 @@
 package com.habittracker.model
 
+import java.time.Instant
 import java.util.UUID
 
 final case class HabitContext(
@@ -34,5 +35,33 @@ final case class HabitTip(id: Long, content: String)
   * relative to the user's query embedding. */
 final case class RetrievedTip(tip: HabitTip, similarityScore: Double)
 
-/** Response returned by GET /users/{userId}/habits/tips. */
-final case class TipsResponse(tips: List[RetrievedTip], narrative: String)
+// ---------------------------------------------------------------------------
+// Phase 4: user-notes RAG source
+// ---------------------------------------------------------------------------
+
+/** A user-authored note persisted in the user_notes table and returned
+  * by POST /users/{userId}/habits/notes. */
+final case class UserNote(
+    id:        Long,
+    userId:    Long,
+    content:   String,
+    createdAt: Instant
+)
+
+/** Request body for POST /users/{userId}/habits/notes. */
+final case class NoteRequest(content: String)
+
+// ---------------------------------------------------------------------------
+// TipsResponse — Phase 4 BREAKING CHANGE
+// ---------------------------------------------------------------------------
+
+/** Response returned by GET /users/{userId}/habits/tips.
+  *
+  * Phase 4 breaking change: the single `tips` field is replaced by
+  * `externalTips` (Phase 3 corpus source) and `personalNotes` (Phase 4
+  * user-notes source). See ADR-011 §6. */
+final case class TipsResponse(
+    externalTips:  List[RetrievedTip],
+    personalNotes: List[RetrievedTip],
+    narrative:     String
+)

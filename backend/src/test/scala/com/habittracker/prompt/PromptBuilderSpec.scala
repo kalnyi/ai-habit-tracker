@@ -219,5 +219,55 @@ class PromptBuilderSpec extends AnyWordSpec with Matchers {
         withDefault shouldBe withExplicitNil
       }
     }
+
+    // -------------------------------------------------------------------------
+    // Phase 4: personalNotesSection
+    // -------------------------------------------------------------------------
+
+    "personalNotesSection" should {
+
+      "return a non-empty String starting with 'YOUR PAST NOTES:' for non-empty notes list" in {
+        val notes = List(
+          RetrievedTip(HabitTip(1L, "I did better when I exercised in the morning"), 0.88)
+        )
+        val result = PromptBuilder.personalNotesSection(notes)
+        result should startWith("YOUR PAST NOTES:")
+        result should include("I did better when I exercised in the morning")
+      }
+
+      "return empty string for Nil without error" in {
+        PromptBuilder.personalNotesSection(Nil) shouldBe ""
+      }
+    }
+
+    // -------------------------------------------------------------------------
+    // Phase 4: build with both tips and notes
+    // -------------------------------------------------------------------------
+
+    "build with both tips and notes" should {
+
+      "include both section labels in the output" in {
+        val tips = List(
+          RetrievedTip(HabitTip(1L, "Stack your habits"), 0.9)
+        )
+        val notes = List(
+          RetrievedTip(HabitTip(7L, "I did better when I exercised in the morning"), 0.88)
+        )
+        val result = PromptBuilder.build(fullyPopulated, tips = tips, notes = notes)
+        result should include("Relevant habit-science tips retrieved for this user")
+        result should include("YOUR PAST NOTES:")
+      }
+    }
+
+    "build with empty notes (default Nil)" should {
+
+      "match Phase 3 build output — regression guard for AC-27" in {
+        val tips = List(
+          RetrievedTip(HabitTip(1L, "Stack your habits"), 0.9)
+        )
+        PromptBuilder.build(fullyPopulated, tips, Nil) shouldBe
+          PromptBuilder.build(fullyPopulated, tips)
+      }
+    }
   }
 }

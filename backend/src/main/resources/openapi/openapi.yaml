@@ -277,6 +277,38 @@ paths:
                 $ref: '#/components/schemas/TipsResponse'
         '500':
           description: Upstream LLM, embeddings, or internal error
+  /users/{userId}/habits/notes:
+    parameters:
+      - name: userId
+        in: path
+        required: true
+        schema:
+          type: integer
+          format: int64
+    post:
+      summary: Persist a user-authored habit note (embeds and stores)
+      operationId: createUserNote
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/NoteRequest'
+      responses:
+        '201':
+          description: Note persisted with embedding
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserNote'
+        '400':
+          description: Malformed request body
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          description: Upstream embeddings or DB failure
   /users/{userId}/habits/completions/batch:
     parameters:
       - name: userId
@@ -548,11 +580,36 @@ components:
         similarityScore:
           type: number
           format: double
+    NoteRequest:
+      type: object
+      required: [content]
+      properties:
+        content:
+          type: string
+    UserNote:
+      type: object
+      required: [id, userId, content, createdAt]
+      properties:
+        id:
+          type: integer
+          format: int64
+        userId:
+          type: integer
+          format: int64
+        content:
+          type: string
+        createdAt:
+          type: string
+          format: date-time
     TipsResponse:
       type: object
-      required: [tips, narrative]
+      required: [externalTips, personalNotes, narrative]
       properties:
-        tips:
+        externalTips:
+          type: array
+          items:
+            $ref: '#/components/schemas/RetrievedTip'
+        personalNotes:
           type: array
           items:
             $ref: '#/components/schemas/RetrievedTip'

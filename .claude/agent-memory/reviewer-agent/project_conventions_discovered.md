@@ -36,3 +36,12 @@ CLAUDE.md references `infra/docker-compose.yml` but the actual file is `docker-c
 
 ## processOne fold is type-safe in batch service
 In DefaultHabitCompletionService.processOne, the fold first-arg `{ case ConflictError(msg) => ... }` looks like a partial function but is exhaustive because DoobieHabitCompletionRepository.create returns IO[Either[ConflictError, Unit]] — the Left type is ConflictError specifically, not the broader AppError. The Scala compiler does not require a wildcard here. Do not flag as a non-exhaustive pattern match.
+
+## Named val as AC-compliance shim (Phase 4 pattern)
+NoteRepository.scala contains `val similaritySearchSql: String = "..."` with raw `?` placeholders (dead code). The actual parameterised Doobie query is in `private def similaritySearchQuery`. The dead `val` exists purely to satisfy AC-15 / ADR-011 §1 naming requirement. ADR-011 explicitly accepts this ("the Reviewer must verify that the *name* appears in source"). Flag as a warning (misleading duplication) but not blocking. Suggest adding an explanatory comment above the val.
+
+## retrieveBoth is private by ADR decision (Phase 4)
+AC-7 says "any future caller invoke retrieveBoth directly", but ADR-011 §3 resolves this: the def is `private` to TipsRoutes because it is the only current caller. If a second caller appears, visibility widens at that point. Do not flag `private retrieveBoth` as a blocking violation. Note as a nit if no comment explains the intent.
+
+## TipsRoutesParallelRetrievalSpec tests composition, not private method (Phase 4)
+Because `retrieveBoth` is private, `TipsRoutesParallelRetrievalSpec` re-exercises the same `parTupled` composition pattern using stubbed IOs rather than calling the private method. This is the correct white-box approach. Do not flag as inadequate — it correctly tests the composition contract.
